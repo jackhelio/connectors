@@ -19,6 +19,7 @@ jobs:
     needs: verify
     if: github.repository == 'jackhelio/connectors'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment: release
     permissions:
       contents: read
