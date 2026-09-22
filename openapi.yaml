@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Connectors Engine API
-  version: "0.1.0"
+  version: "0.1.1"
   description: |
     Rails engine for encrypted credentials, provider authorization, actions, webhooks, polling and remote MCP tools.
     Every endpoint is namespaced under the engine's mount path (default `/connectors`).

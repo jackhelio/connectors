@@ -29,7 +29,7 @@ Create the matching GitHub environment `release`, with a deployment tag policy a
    ```sh
    bundle exec ruby script/verify_package.rb
    bundle exec gem build connectors.gemspec --strict
-   gem specification connectors-0.1.0.gem files
+   gem specification connectors-0.1.1.gem files
    ```
 
    Replace the artifact version when preparing a later release. The verification script checks public metadata, required files and documentation links, installs the gem into a temporary directory, and boots a fresh Rails host outside the checkout. It checks the shipped connector registry, migration discovery and MCP schema loading. It neither publishes nor invokes a provider. RSpec runs this same check in CI.
@@ -45,8 +45,8 @@ Fetch the merged commit, confirm its version and green CI, then create an annota
 
 ```sh
 git fetch origin --tags
-git tag -a v0.1.0 <verified-main-commit-sha> -m "Release 0.1.0"
-git push origin v0.1.0
+git tag -a v0.1.1 <verified-main-commit-sha> -m "Release 0.1.1"
+git push origin v0.1.1
 ```
 
 Replace the SHA placeholder and version. Pushing the tag starts `.github/workflows/release.yml`. It reuses the normal CI workflow to run lint and the full RSpec suite before the publishing job starts. The publishing job verifies the tag, ancestry and package, builds the gem strictly, exchanges GitHub OIDC identity for short-lived RubyGems credentials using the official credentials action, then pushes the package. Only this job has `id-token: write`; neither job needs repository write permission.
