@@ -38,7 +38,7 @@ Dir.mktmpdir("connectors-package-") do |temporary|
   installed = File.join(temporary, "installed")
   environment = ENV.keys.grep(/\ABUNDLE_/).to_h { |name| [ name, nil ] }.merge(
     "GEM_HOME" => installed, "GEM_PATH" => ([ installed ] + dependency_paths).join(File::PATH_SEPARATOR),
-    "BUNDLE_GEMFILE" => nil, "RUBYOPT" => nil, "RUBYLIB" => nil, "RAILS_ENV" => "test"
+    "BUNDLE_GEMFILE" => nil, "RUBYOPT" => nil, "RUBYLIB" => nil, "RAILS_ENV" => "test", "DATABASE_URL" => nil
   )
   run!(environment, Gem.ruby, "-S", "gem", "install", archive, "--local", "--ignore-dependencies", "--no-document",
     "--install-dir", installed, chdir: temporary)
@@ -66,10 +66,14 @@ Dir.mktmpdir("connectors-package-") do |temporary|
     require "action_controller/railtie"
     require "connectors"
     require "tmpdir"
+    require "fileutils"
     require "logger"
     expected_root = File.realpath(ARGV.fetch(0))
     abort "Loaded source checkout instead of installed gem" unless File.realpath(Gem.loaded_specs.fetch("connectors").full_gem_path) == expected_root
     Dir.mktmpdir("connectors-host-") do |host|
+      # Rails requires configuration when loading Active Record, even without queries.
+      FileUtils.mkdir_p(File.join(host, "config"))
+      File.write(File.join(host, "config/database.yml"), "test:\n  adapter: postgresql\n  database: connectors_package_smoke\n")
       app_class = Class.new(Rails::Application) do
         config.root = host
         config.api_only = true
