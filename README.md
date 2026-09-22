@@ -23,7 +23,7 @@ JSON is constrained to 2.x because Rails 8.1's decoder is incompatible with JSON
 For a published release, add to your host's Gemfile:
 
 ```ruby
-gem "connectors", "~> 0.1.0"
+gem "connectors", "~> 0.1.1"
 gem "pg"
 ```
 
