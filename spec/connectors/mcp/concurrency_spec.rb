@@ -11,7 +11,7 @@ RSpec.describe "MCP concurrent authorization", :mcp_concurrency do
       "client" => { "client_id" => "client", "token_endpoint_auth_method" => "none" },
       "metadata" => { "issuer" => "https://auth.example.test", "token_endpoint" => "https://auth.example.test/token" },
       "tokens" => { "access_token" => "old", "refresh_token" => "rotating" } })
-    allow(Addrinfo).to receive(:getaddrinfo).and_return([ Addrinfo.ip("93.184.216.34") ])
+    stub_mcp_dns
   end
   after do
     @threads&.each { |t| t.kill if t.alive? }

@@ -56,6 +56,8 @@ RSpec.describe "MCP real HTTP streaming" do
       socket.write("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\ndata: #{ack.to_json}\n\n")
       entered << true
       socket.read
+    rescue Errno::ECONNRESET
+      # Cancelling with unread response bytes can reset the socket on Linux.
     end
     cancellation = Connectors::MCP::Cancellation.new
     reader = Thread.new do

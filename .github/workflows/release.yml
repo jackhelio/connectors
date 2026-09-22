@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: verify
+    if: github.repository == 'jackhelio/connectors'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@e8944e80fb94b20106697132f8c20c665fab29e9 # v1
+        with:
+          ruby-version: ruby-3.4.8
+          bundler-cache: true
+
+      - name: Validate release tag and commit
+        run: |
+          ruby -r ./lib/connectors/version -e 'abort "Tag must match gem version" unless ENV.fetch("GITHUB_REF") == "refs/tags/v#{Connectors::VERSION}"'
+          git merge-base --is-ancestor HEAD origin/main
+          test -z "$(git status --porcelain)"
+
+      - name: Verify and build package
+        run: |
+          bundle exec ruby script/verify_package.rb
+          mkdir -p pkg
+          bundle exec gem build connectors.gemspec --strict --output pkg/connectors.gem
+
+      - name: Authenticate with RubyGems
+        uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
+
+      - name: Publish gem
+        run: gem push pkg/connectors.gem --host https://rubygems.org

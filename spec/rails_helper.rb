@@ -8,6 +8,7 @@ abort("The Rails environment is running in production mode!") if Rails.env.produ
 
 require "rspec/rails"
 require "webmock/rspec"
+require_relative "support/mcp/dns"
 WebMock.disable_net_connect!(allow_localhost: true)
 
 begin
@@ -26,6 +27,7 @@ module ConnectorsSpecState
 end
 
 RSpec.configure do |config|
+  config.include McpDnsSpecHelpers
   config.use_transactional_fixtures = true
   config.infer_spec_type_from_file_location!
   config.filter_rails_from_backtrace!

@@ -1,13 +1,18 @@
 name: CI
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       RUBY_VERSION: ruby-3.4.8
       RUBOCOP_CACHE_ROOT: tmp/rubocop
@@ -36,6 +41,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     services:
       postgres:
@@ -72,7 +78,7 @@ jobs:
           # REDIS_URL: redis://localhost:6379/0
         run: |
           bundle exec rake app:db:prepare
-          bundle exec rspec --order random
+          timeout 5m bundle exec rspec --order random --format documentation
 
       - name: Keep screenshots from failed system tests
         uses: actions/upload-artifact@v4

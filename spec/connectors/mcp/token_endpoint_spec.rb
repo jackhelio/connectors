@@ -5,7 +5,7 @@ RSpec.describe Connectors::MCP::TokenEndpoint do
   let(:method) { "client_secret_basic" }
   let(:client) { { "client_id" => "client:id", "client_secret" => "client secret", "token_endpoint_auth_method" => method } }
   let(:params) { { "grant_type" => "authorization_code", "code" => "code", "resource" => "https://mcp.example.test/mcp" } }
-  before { allow(Addrinfo).to receive(:getaddrinfo).and_return([ Addrinfo.ip("93.184.216.34") ]) }
+  before { stub_mcp_dns }
 
   def token_request
     stub_request(:post, "https://auth.example.test/token").to_return(headers: { "Content-Type" => "application/json" }, body: { access_token: "access", token_type: "Bearer" }.to_json)

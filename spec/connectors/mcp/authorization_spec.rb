@@ -7,7 +7,7 @@ RSpec.describe "MCP OAuth" do
   let(:metadata) { { issuer: "https://auth.example.test", authorization_endpoint: "https://auth.example.test/authorize", token_endpoint: "https://auth.example.test/token", registration_endpoint: "https://auth.example.test/register", code_challenge_methods_supported: [ "S256" ], authorization_response_iss_parameter_supported: true } }
 
   before do
-    allow(Addrinfo).to receive(:getaddrinfo).and_return([ Addrinfo.ip("93.184.216.34") ])
+    stub_mcp_dns
     Connectors.configuration.mcp.callback_url = "https://app.example.test/mcp/callback"
     stub_request(:get, "https://resource.example.test/.well-known/oauth-protected-resource/mcp").to_return(headers: { "Content-Type" => "application/json" }, body: { resource: "https://resource.example.test/mcp", authorization_servers: [ "https://auth.example.test" ], scopes_supported: [ "read" ] }.to_json)
     stub_request(:get, "https://auth.example.test/.well-known/oauth-authorization-server").to_return { { headers: { "Content-Type" => "application/json" }, body: metadata.to_json } }

@@ -19,6 +19,14 @@ Dir.mktmpdir("connectors-package-") do |temporary|
   archive = File.join(temporary, "connectors.gem")
   run!(Gem.ruby, "-S", "gem", "build", "connectors.gemspec", "--strict", "--output", archive, chdir: root)
   package = Gem::Package.new(archive)
+  metadata = package.spec.metadata
+  abort "Unexpected publishing destination" unless metadata["allowed_push_host"] == "https://rubygems.org"
+  homepage = "https://github.com/jackhelio/connectors"
+  abort "Incorrect repository homepage" unless package.spec.homepage == homepage
+  %w[homepage_uri source_code_uri documentation_uri changelog_uri].each do |key|
+    value = metadata.fetch(key, "")
+    abort "Incorrect #{key}: #{value}" unless value == homepage || value.start_with?("#{homepage}/")
+  end
   required = %w[README.md MIT-LICENSE CHANGELOG.md CONTRIBUTING.md CONNECTORS_FRAMEWORK.md MCP_CLIENT.md openapi.yaml
     docs/architecture.md docs/adding-connectors.md docs/releasing.md lib/connectors.rb
     lib/connectors/mcp/protocol/2026-07-28.json lib/connectors/mcp/protocol/LICENSE]

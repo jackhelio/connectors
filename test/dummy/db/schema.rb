@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_22_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_22_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -48,6 +48,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_120000) do
     t.index [ "owner_type", "owner_id", "connector_key" ], name: "index_connectors_grants_on_owner_and_connector"
     t.index [ "owner_type", "owner_id" ], name: "index_connectors_grants_on_owner"
     t.index [ "status" ], name: "index_connectors_grants_on_status"
+  end
+
+  create_table "connectors_mcp_authorizations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "actor_key", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "fingerprint", null: false
+    t.uuid "grant_id", null: false
+    t.text "payload", null: false
+    t.string "state_digest", null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index [ "expires_at" ], name: "index_connectors_mcp_authorizations_on_expires_at"
+    t.index [ "grant_id" ], name: "index_connectors_mcp_authorizations_on_grant_id"
+    t.index [ "state_digest" ], name: "index_connectors_mcp_authorizations_on_state_digest", unique: true
+  end
+
+  create_table "connectors_mcp_interactions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "actor_key", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "fingerprint", null: false
+    t.uuid "grant_id", null: false
+    t.text "payload", null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index [ "expires_at" ], name: "index_connectors_mcp_interactions_on_expires_at"
+    t.index [ "grant_id" ], name: "index_connectors_mcp_interactions_on_grant_id"
   end
 
   create_table "connectors_poll_states", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -90,6 +118,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_120000) do
   end
 
   add_foreign_key "connectors_credential_shares", "connectors_grants", column: "grant_id"
+  add_foreign_key "connectors_mcp_authorizations", "connectors_grants", column: "grant_id", on_delete: :cascade
+  add_foreign_key "connectors_mcp_interactions", "connectors_grants", column: "grant_id", on_delete: :cascade
   add_foreign_key "connectors_poll_states", "connectors_grants", column: "grant_id"
   add_foreign_key "connectors_webhook_events", "connectors_grants", column: "grant_id"
 end
