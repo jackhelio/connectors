@@ -11,13 +11,15 @@ From the repository root:
 ```sh
 bundle install
 export RAILS_ENV=test
-export DATABASE_URL=postgresql:///connectors_test
+export DATABASE_URL=postgresql://localhost/connectors_test
 bundle exec rake app:db:prepare
 bundle exec rspec --order random
 bundle exec rubocop
 ```
 
 Use a disposable database: the suite includes committed-record concurrency tests and cleanup. Do not point it at a host's development or production data. PostgreSQL role permissions must allow database creation, or create the test database beforehand. `PYTHON` can select the Python executable; otherwise tests use `python3`. Local socket/loopback access is required by MCP interoperability and streaming tests.
+
+Use a TCP database connection, as CI does, when validating concurrency changes. MCP tests use `stub_mcp_dns` to replace only provider fixture lookups; never stub all DNS resolution, because the PostgreSQL driver uses it too.
 
 The dummy Rails application lives in `test/dummy`. It provides UUID owners, synthetic encryption keys, test routes and fixture connectors. Its keys and authentication setup are not installation defaults for host applications.
 

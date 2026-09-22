@@ -5,7 +5,7 @@ RSpec.describe "MCP connection endpoints", type: :request do
   let(:grant) { Connectors::Grant.create!(owner: owner, connector_key: "mcp", credentials: { "server_url" => "https://mcp.example.test/mcp", "auth_mode" => "bearer", "bearer_token" => "secret-token", "headers" => { "X-Api-Key" => "header-secret" } }) }
   before do
     Connectors.configuration.current_owner_resolver = ->(_) { owner }
-    allow(Addrinfo).to receive(:getaddrinfo).and_return([ Addrinfo.ip("93.184.216.34") ])
+    stub_mcp_dns
   end
 
   it "never returns MCP secrets through include_data" do

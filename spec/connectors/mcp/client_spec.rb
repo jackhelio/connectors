@@ -7,7 +7,7 @@ RSpec.describe "MCP remote tools" do
   let(:tool) { { "name" => "echo", "title" => "Echo", "_meta" => { "example.test/tag" => "value" }, "inputSchema" => { "type" => "object", "required" => [ "value" ], "properties" => { "value" => { "type" => "string" } } } } }
 
   before do
-    allow(Addrinfo).to receive(:getaddrinfo).and_return([ Addrinfo.ip("93.184.216.34") ])
+    stub_mcp_dns
   end
 
   def respond(&block)

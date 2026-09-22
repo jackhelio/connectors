@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "MCP protocol contracts" do
   let(:url) { "https://mcp.example.test/mcp" }
   let(:transport) { Connectors::MCP::Transport.new(url: url) }
-  before { allow(Addrinfo).to receive(:getaddrinfo).and_return([ Addrinfo.ip("93.184.216.34") ]) }
+  before { stub_mcp_dns }
 
   def json_result(result = {}, &block)
     stub_request(:post, url).to_return do |req|
@@ -119,13 +119,13 @@ RSpec.describe "MCP schemas and egress" do
 
   %w[127.0.0.1 169.254.169.254 10.0.0.1 ::1 ::ffff:127.0.0.1].each do |address|
     it "blocks DNS resolution to #{address}" do
-      allow(Addrinfo).to receive(:getaddrinfo).and_return([ Addrinfo.ip(address) ])
+      stub_mcp_dns("mcp.example.test", addresses: [ address ])
       expect { Connectors::MCP::HTTP.new.call(url: "https://mcp.example.test/") }.to raise_error(Connectors::MCP::ConfigurationRequired, /restricted/)
     end
   end
 
   it "refuses mixed public and private DNS answers" do
-    allow(Addrinfo).to receive(:getaddrinfo).and_return([ Addrinfo.ip("93.184.216.34"), Addrinfo.ip("10.0.0.1") ])
+    stub_mcp_dns("mcp.example.test", addresses: %w[93.184.216.34 10.0.0.1])
     expect { Connectors::MCP::HTTP.new.call(url: "https://mcp.example.test/") }.to raise_error(Connectors::MCP::ConfigurationRequired)
   end
 

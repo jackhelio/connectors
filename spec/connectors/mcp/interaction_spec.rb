@@ -5,7 +5,7 @@ RSpec.describe "MCP interactive tool calls" do
   let(:grant) { Connectors::Grant.create!(owner: owner, connector_key: "mcp", credentials: { "server_url" => "https://mcp.example.test/mcp", "auth_mode" => "none" }) }
   let(:client) { Connectors::MCP::Client.new(grant: grant, actor: owner) }
   before do
-    allow(Addrinfo).to receive(:getaddrinfo).and_return([ Addrinfo.ip("93.184.216.34") ])
+    stub_mcp_dns
     Connectors.configuration.mcp.elicitation_modes = [ "url" ]
     @calls = []
     stub_request(:post, "https://mcp.example.test/mcp").to_return do |req|

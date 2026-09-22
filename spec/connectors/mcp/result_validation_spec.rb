@@ -6,7 +6,7 @@ RSpec.describe "MCP result validation" do
   let(:client) { Connectors::MCP::Client.new(grant: grant, actor: owner) }
   let(:result) { { "content" => [ { "type" => "text", "text" => "okay" } ] } }
   before do
-    allow(Addrinfo).to receive(:getaddrinfo).and_return([ Addrinfo.ip("93.184.216.34") ])
+    stub_mcp_dns
     stub_request(:post, "https://mcp.example.test/mcp").to_return do |req|
       request = JSON.parse(req.body)
       data = request["method"] == "tools/list" ? { tools: [ { name: "echo", inputSchema: { type: "object" } } ] } : result

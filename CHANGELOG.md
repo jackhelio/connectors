@@ -23,6 +23,7 @@ Changes are recorded here before release. Published packages are listed on [Ruby
 - Distributable gem includes its referenced user guides, API contract, changelog and upstream protocol license.
 - Development lockfile includes dependency checksums and Linux platform declarations for CI.
 - Streaming cancellation test accepts the expected TCP reset on Linux; CI reports individual examples and bounds execution time.
+- MCP test DNS stubs preserve real database resolution so concurrency checks work with TCP PostgreSQL connections.
 
 ### Compatibility and upgrade notes
 

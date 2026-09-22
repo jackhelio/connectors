@@ -9,7 +9,7 @@ RSpec.describe "ClickUp MCP connector", type: :request do
   before do
     Connectors.configuration.current_owner_resolver = ->(_) { owner }
     Connectors.configuration.mcp.callback_url = callback
-    allow(Addrinfo).to receive(:getaddrinfo).and_return([ Addrinfo.ip("93.184.216.34") ])
+    stub_mcp_dns("mcp.clickup.com")
   end
 
   def create_connection(data = {})
