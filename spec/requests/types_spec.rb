@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe "GET /connectors/types", type: :request do
-  it "returns the registered connector catalog using n8n vocabulary" do
+  it "returns the registered connector catalog with credential form metadata" do
     get "/connectors/types"
     expect(response).to have_http_status(:ok)
 
@@ -32,7 +32,7 @@ RSpec.describe "GET /connectors/types", type: :request do
       expect(authorization_url["default"]).to eq("https://slack.com/oauth/v2/authorize")
     end
 
-    it "client_secret keeps typeOptions.password = true (n8n password convention)" do
+    it "client_secret keeps typeOptions.password = true" do
       client_secret = slack["properties"].find { |p| p["name"] == "client_secret" }
       expect(client_secret["typeOptions"]).to include("password" => true)
     end

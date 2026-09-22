@@ -1,10 +1,7 @@
 require "rails_helper"
 
-# Phase 6 — webhook subscription lifecycle. Mirrors n8n's
-# `INodeType.webhookMethods.default.{checkExists, create, delete}`
-# (interfaces.ts:2017, 2091-2095). Reference impl: Postmark
-# (`nodes-base/nodes/Postmark/PostmarkTrigger.node.ts:114-247`).
-RSpec.describe "Phase 6 — webhook_methods DSL + lifecycle" do
+# Webhook subscription callbacks and persisted lifecycle state.
+RSpec.describe "webhook_methods DSL + lifecycle" do
   let(:owner) { Owner.create!(name: "p6 owner") }
 
   # Postmark-shaped connector: GET /webhooks → list; POST /webhooks → create

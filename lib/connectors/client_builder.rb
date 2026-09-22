@@ -15,22 +15,16 @@ module Connectors
   #   4. ErrorNormalization                         — raises after retry exhaustion
   #   5. Retry / JSON response parser               — inspect parsed responses
   #   6. GrantStatus                               — reject revoked grants on each attempt
-  #   7. PreAuthentication (Phase 3)                — proactive token refresh
+  #   7. PreAuthentication                          — proactive token refresh
   #   8. Auth injection — declarative or imperative (one or the other)
   #   9. Adapter                                    — sends the HTTP request
   class ClientBuilder
     DEFAULT_OPEN_TIMEOUT = 5
     DEFAULT_TIMEOUT      = 30
 
-    # `authenticate_config` is the connector class's declarative
-    # `authenticate type: :generic, properties: {...}` block (Phase 1). When
-    # present, AuthenticateGeneric middleware applies it. When absent, fall
-    # back to the imperative `auth_scheme` middleware (legacy path —
-    # `Auth::Scheme::ApiKey` / `Auth::Scheme::OAuth2`).
-    #
-    # `pre_auth_block` is the connector's `pre_authentication` block (Phase 3).
-    # When present, PreAuthentication middleware runs it before each request
-    # whose grant credentials look stale (expires_at missing or in the past).
+    # AuthenticateGeneric applies a resolved authenticate declaration when
+    # present; otherwise the client uses the configured auth_scheme.
+    # PreAuthentication runs the optional hook when expires_at is absent or past.
     def initialize(base_url:, grant:, auth_scheme:, authenticate_config: nil, pre_auth_block: nil,
                    open_timeout: DEFAULT_OPEN_TIMEOUT, timeout: DEFAULT_TIMEOUT)
       @base_url            = base_url

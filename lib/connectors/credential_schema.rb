@@ -1,8 +1,5 @@
 module Connectors
-  # Declarative description of every field a credential type's data hash can
-  # contain. Mirrors n8n's `INodeProperties` shape exactly (n8n source:
-  # packages/workflow/src/interfaces.ts:1773-1812) so a single frontend
-  # renderer handles every connector with no per-connector logic.
+  # Credential form schema used by client renderers.
   #
   #   credentials do
   #     field :api_key,
@@ -17,12 +14,9 @@ module Connectors
   # Inheritance: a connector can `extends :oauth2` (or any other registered
   # base type) and `field` calls in the block can REDECLARE inherited fields
   # — typically as `type: "hidden"` with a fixed `default:` to lock provider
-  # endpoints (matches n8n's Slack/Google override pattern at
-  # SlackOAuth2Api.credentials.ts:38-122).
+  # endpoints.
   class CredentialSchema
-    # n8n's `NodePropertyTypes` enum (interfaces.ts:1561-1584). Wave A ships
-    # the most commonly-used subset; later waves add resourceLocator /
-    # collection / fixedCollection / dateTime as connectors demand them.
+    # Supported credential form field types.
     ALLOWED_TYPES = %w[
       string number boolean
       options multiOptions
@@ -43,9 +37,7 @@ module Connectors
         (type_options || {}).any? { |k, v| k.to_s == "password" && v == true }
       end
 
-      # Frontend-shaped hash. n8n serializes property names in camelCase
-      # (`displayName`, `typeOptions`); we mirror that so the editor's
-      # generic form renderer eats it without translation.
+      # Serialize form metadata with camelCase field keys for client renderers.
       def to_property
         {
           name:             name.to_s,
@@ -90,7 +82,7 @@ module Connectors
     end
 
     # Inherit fields from one or more registered base credential schemas
-    # (today only `:oauth2`). Inherited fields can be REDECLARED below via
+    # such as :oauth2 or :http_bearer_auth. Redeclare inherited fields via
     # `field` — typically as `type: "hidden", default: "..."` to lock
     # provider-specific endpoints. Doubles as a getter when called with
     # no args (the serializer needs to read it back).
@@ -99,20 +91,15 @@ module Connectors
       @extends = base_names.flatten.map(&:to_sym)
     end
 
-    # n8n-shape declarative auth injection (mirrors `ICredentialType.authenticate`
-    # at packages/workflow/src/interfaces.ts:367; type `IAuthenticateGeneric`
-    # at :278-288). Per-credential-type so any connector that `extends` this
-    # schema inherits the injection contract automatically.
+    # Declare authentication properties inherited by connectors extending
+    # this credential schema.
     def authenticate(type: nil, properties: nil)
       return @authenticate if type.nil? && properties.nil?
       raise ArgumentError, "authenticate type: must be :generic" unless type.to_sym == :generic
       @authenticate = { "type" => "generic", "properties" => properties }
     end
 
-    # n8n flag: this credential type is visible to the future generic HTTP
-    # Request node's credential picker (`interfaces.ts:379`; example
-    # consumer `HttpBearerAuth.credentials.ts:12`). Stored here so the
-    # serializer surfaces it; runtime enforcement lands in Phase 5.
+    # Allow generic HTTP-request use and advertise it in the catalog.
     def generic_auth!
       @generic_auth = true
     end
@@ -176,10 +163,8 @@ module Connectors
       @fields.values
     end
 
-    # n8n's editor walks `extends` and merges parent properties before
-    # rendering. We do the walk server-side and emit the union so the
-    # frontend doesn't need to fetch each parent type separately. Children
-    # override parents by re-declaring with the same name.
+    # Resolve inherited fields server-side. Children replace parent fields
+    # with the same name, so clients receive a complete form schema.
     def resolved_fields
       parent_fields = @extends.flat_map { |name| CredentialTypeRegistry.fetch(name).own_fields }
       union         = {}
@@ -187,10 +172,8 @@ module Connectors
       union.values
     end
 
-    # Walk `extends` to find the inherited authenticate block; the child's
-    # own block (if declared) overrides. Returns nil when no parent in the
-    # chain declared one. Matches n8n's runtime credential-walker pattern
-    # at packages/cli/src/credential-types.ts:26-37.
+    # Resolve the nearest authenticate declaration, preferring this schema.
+    # Returns nil when no schema in the inheritance chain declares one.
     def resolved_authenticate
       return @authenticate if @authenticate
       @extends.each do |name|

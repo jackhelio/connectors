@@ -7,10 +7,6 @@ module Connectors
     # `grant_type=client_credentials` + `client_id`/`client_secret` to the
     # provider's token endpoint and returns a normalized token hash that the
     # OAuthController writes to a new or explicitly selected Grant.
-    #
-    # n8n parity: `OAuth2Api.credentials.ts:1-45` declares the `grantType`
-    # field with `clientCredentials` as one option; the runtime branch lives
-    # at `oauth.service.ts:783-789`.
     class ClientCredentials
       def self.exchange(connector_class)
         new(connector_class).exchange

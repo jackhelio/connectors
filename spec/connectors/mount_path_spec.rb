@@ -24,7 +24,7 @@ RSpec.describe Connectors::Engine do
       expect(described_class.mount_path).to eq(original)
     end
 
-    # Real-world host pattern (`flow-api`): the engine is mounted INSIDE
+    # Nested mount regression: the engine is mounted inside
     # `namespace :api { scope "v1" }`, which produces a route whose `app`
     # chain is `Constraints → Connectors::Engine → LazyRouteSet`. An
     # earlier walk-to-terminal version of `lookup_mount_path` unwrapped

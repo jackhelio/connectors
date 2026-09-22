@@ -187,7 +187,7 @@ RSpec.describe Gmail::Polling do
     end
   end
 
-  describe "drafts + sent-not-inbox skipping (n8n parity)" do
+  describe "drafts + sent-not-inbox skipping" do
     let(:sd) { { "last_checked_at" => 1_700_000_000, "possible_duplicates" => [] } }
 
     it "skips DRAFT messages by default" do

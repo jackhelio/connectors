@@ -17,8 +17,7 @@ module Slack
     # Slack inherits the canonical OAuth2 form (grantType / authUrl / tokenUrl /
     # client_id / client_secret / scope / etc.) and locks the Slack-specific
     # endpoints + default scopes by re-declaring them as hidden with fixed
-    # defaults. Matches n8n's SlackOAuth2Api pattern
-    # (packages/nodes-base/credentials/SlackOAuth2Api.credentials.ts:38-122).
+    # defaults.
     #
     # The tokens Slack returns after the OAuth dance (access_token, team_id,
     # bot_user_id, ...) are NOT user-input fields — they get stored on the

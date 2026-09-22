@@ -4,15 +4,9 @@ require "base64"
 
 module Connectors
   module OAuth
-    # RFC 7636 — Proof Key for Code Exchange. We generate a random
-    # `code_verifier`, derive `code_challenge = BASE64URL(SHA256(verifier))`
-    # (method `S256`), and embed the verifier in the signed OAuth state
-    # token so the callback can include it in the token exchange.
-    #
-    # n8n parity: `oauth.service.ts:578-586` — same `S256` derivation,
-    # verifier stashed in encrypted credential data until callback. We use
-    # the signed state token instead of a DB write so the flow stays
-    # stateless on the engine side.
+    # RFC 7636 PKCE using S256. Generate a random verifier and derive
+    # BASE64URL(SHA256(verifier)). Store the verifier in authenticated, encrypted
+    # OAuth state for use during the callback token exchange.
     module Pkce
       module_function
 

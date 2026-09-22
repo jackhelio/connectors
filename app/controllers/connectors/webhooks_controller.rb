@@ -83,10 +83,8 @@ module Connectors
         request.headers["Signature"]
     end
 
-    # Capture every HTTP_* header on the inbound request, normalized to
-    # lowercase + dashed keys (`http_x_hub_signature` → `x-hub-signature`),
-    # so the n8n-style `ctx.headers["stripe-signature"]` access works
-    # without callers having to know about Rack's mangling.
+    # Normalize inbound HTTP_* headers to lowercase, dashed names
+    # so handlers can use `ctx.headers["stripe-signature"]`.
     def inbound_headers
       request.headers.env.each_with_object({}) do |(k, v), out|
         next unless k.start_with?("HTTP_")

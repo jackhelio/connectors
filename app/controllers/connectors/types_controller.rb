@@ -1,13 +1,7 @@
 module Connectors
-  # Catalog of every connector class registered in the engine. Read by the
-  # frontend at startup to render the "Add credential" form, the connect-OAuth
-  # popup, the credential picker on nodes — purely by reading this metadata.
-  # No per-connector frontend logic.
-  #
-  # Response shape mirrors n8n's `ICredentialType` description (n8n source:
-  # packages/workflow/src/interfaces.ts:356-382) so a single frontend renderer
-  # handles every connector. Returns only static metadata — never any secrets
-  # or per-user state.
+  # Static catalog of registered connectors. Clients use its metadata to
+  # render credential forms, authorization links and action inputs.
+  # The catalog contains no secrets or per-user state.
   class TypesController < ApplicationController
     # GET /connectors/types
     def index
@@ -42,10 +36,8 @@ module Connectors
       schema = klass.credential_schema
 
       {
-        # `name` is the n8n vocabulary for the machine identifier; `display_name`
-        # is the picker label. We keep `key`/`label` as aliases for back-compat
-        # with the existing /grants response — frontend should prefer the n8n
-        # names going forward.
+        # `name` identifies the connector; `display_name` is its UI label.
+        # `key` and `label` remain aliases for existing consumers.
         name:              key.to_s,
         display_name:      klass.display_name || key.to_s.humanize,
         key:               key.to_s,                                       # @deprecated — use `name`
@@ -65,44 +57,29 @@ module Connectors
         # or install an app first (e.g. Resend).
         instructions:      klass.instructions,
 
-        # n8n inheritance chain. Empty array when the credential type stands
-        # alone (e.g., API-key connectors). Frontend can fetch the parent's
-        # schema via `/connectors/types/:parent` OR rely on the resolved
-        # `properties` array below which already merges parent + own.
+        # Credential inheritance chain. The properties below already merge
+        # inherited and local fields, with local definitions taking precedence.
         extends:          schema ? schema.extends.map(&:to_s) : [],
         properties:       schema ? schema.resolved_fields.map(&:to_property) : [],
 
-        # Declarative auth injection — mirrors n8n's `IAuthenticateGeneric`
-        # at packages/workflow/src/interfaces.ts:278-288. Reads the resolved
-        # config (connector-level override OR inherited from the credential
-        # type via `extends`). nil when the connector still uses the
-        # imperative `api_key_in` shim AND no parent declared one.
+        # Resolved auth injection: connector override, then inherited schema.
+        # Nil when neither declares an authenticate block.
         authenticate:     klass.resolved_authenticate_config,
-        # n8n's `genericAuth: boolean` (`interfaces.ts:379`). True when the
-        # connector itself flips `generic_auth!` OR when it extends a schema
-        # that already does (HttpBearerAuth etc.).
+        # True when the connector or an inherited schema enables generic_auth.
         generic_auth:     klass.generic_auth?,
 
-        # n8n's `supportedNodes: string[]` (`interfaces.ts:381`). Empty array
-        # means "no restriction" — same default as n8n. The frontend uses
-        # this to filter the credential picker per node type.
+        # Allowed node types. An empty list imposes no node-type restriction.
         supported_nodes:  klass.supported_nodes.map(&:to_s),
 
-        # n8n's `httpRequestNode: ICredentialHttpRequestNode` (interfaces.ts:380,
-        # union shape at :350-354). Tells the generic HTTP-Request node's
-        # credential picker how to label + link this credential. nil when the
-        # connector hasn't declared it.
+        # Optional label, documentation link and base URL for an HTTP-request
+        # credential picker.
         http_request_node: klass.http_request_node,
 
-        # n8n's `__overwrittenProperties: string[]` (`interfaces.ts:382`;
-        # populated at `frontend.service.ts:681-705`). Field names whose
-        # values are sourced from the external secrets manager — the editor
-        # renders them locked / hidden. Empty array when no vault is
-        # configured for this connector type.
+        # Vault-sourced field names for the editor to display as managed.
+        # Empty when the host has not configured managed fields for this type.
         __overwritten_properties: Connectors.configuration.managed_fields_for(key),
 
-        # n8n's `__skipManagedCreation` (frontend.service.ts:707-711). When
-        # true the editor hides the "Use external secret" toggle.
+        # When true, clients should hide managed-credential creation.
         __skip_managed_creation: klass.skip_managed_creation?,
 
         # Action manifest — what this connector can DO with a credential.
@@ -113,12 +90,8 @@ module Connectors
         # connector hasn't declared any actions yet.
         actions: klass.actions.map(&:to_manifest),
 
-        # Connector capabilities — orthogonal to credentials. Lives in its own
-        # block so frontend code that only cares about credential rendering
-        # can ignore it. For OAuth connectors, `redirect_uri` is the URL the
-        # admin must paste into the provider's app console (computed from the
-        # host's base URL — n8n does the same server-side at
-        # packages/cli/src/oauth/oauth.service.ts:528,690).
+        # Connector capabilities, separate from credential form metadata.
+        # OAuth redirect_uri is the callback URL to register with the provider.
         connector: {
           base_url:      klass.base_url,
           webhook_style: klass.webhook_style.to_s,

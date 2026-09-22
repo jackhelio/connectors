@@ -1,10 +1,7 @@
 require "rails_helper"
 
-# Phase 7 — `WebhookContext` parity with n8n's `IWebhookFunctions`
-# (packages/workflow/src/interfaces.ts:1327-1350). The handler should be
-# able to inspect headers / query / raw body / webhook group name without
-# threading the underlying request through.
-RSpec.describe "Phase 7 — WebhookContext" do
+# Webhook handlers receive body, headers, query and the named group.
+RSpec.describe "WebhookContext" do
   let(:owner) { Owner.create!(name: "p7 owner") }
 
   # Stripe-style connector that needs the `Stripe-Signature` header inside
@@ -51,7 +48,7 @@ RSpec.describe "Phase 7 — WebhookContext" do
 
     let(:ctx) { Connectors::WebhookContext.new(event) }
 
-    it "exposes the n8n IWebhookFunctions surface" do
+    it "exposes body, headers, query and webhook group" do
       expect(ctx.body).to         eq("type" => "charge.succeeded", "id" => "evt_1")
       expect(ctx.payload_hash).to eq("type" => "charge.succeeded", "id" => "evt_1")  # legacy alias
       expect(ctx.payload).to      eq("type" => "charge.succeeded", "id" => "evt_1")  # legacy alias

@@ -1,29 +1,13 @@
 module Connectors
-  # Generic HTTP authentication credential types — n8n parity with the six
-  # `Http*Auth.credentials.ts` types shipped in
-  # `packages/nodes-base/credentials/`. Each is `generic_auth: true` so a
-  # future HTTP-Request-style node can offer them in its credential picker
-  # (the runtime check lands in Phase 5).
-  #
-  # Connectors inherit any of these via `extends :http_bearer_auth` etc.
-  # When a connector extends one of the runtime-supported types
-  # (basic / bearer / header / query), the AuthenticateGeneric middleware
-  # picks up the inherited `authenticate` block and injects per-request —
-  # no `api_key_in` boilerplate needed.
-  #
-  # n8n source: `packages/nodes-base/credentials/HttpBasicAuth.credentials.ts`,
-  # `HttpBearerAuth.credentials.ts`, `HttpHeaderAuth.credentials.ts`,
-  # `HttpQueryAuth.credentials.ts`, `HttpDigestAuth.credentials.ts`,
-  # `HttpCustomAuth.credentials.ts`.
+  # Reusable HTTP authentication schemas. Basic, bearer, header and query
+  # types declare runtime injection inherited by extending connectors.
+  # Digest and custom JSON types provide form metadata only.
+  # All types advertise generic_auth for HTTP-request credential selection.
   module CredentialTypes
-    # --- :http_basic_auth -------------------------------------------------
-    # n8n: HttpBasicAuth.credentials.ts:1-33. n8n's HTTP node implements
-    # Basic auth itself (no `authenticate` block on the credential). We
-    # synthesize one using AuthenticateGeneric's `auth: { username, password }`
-    # shortcut so the declarative path works end-to-end.
+    # Basic authentication via the declarative username/password shortcut.
     HTTP_BASIC_AUTH = CredentialSchema.build do
       display_name      "Basic Auth"
-      documentation_url "httprequest"
+      documentation_url "https://github.com/jackhelio/connectors/blob/main/CONNECTORS_FRAMEWORK.md#6-built-in-base-credential-types"
       generic_auth!
 
       field :user,
@@ -41,11 +25,10 @@ module Connectors
       }
     end
 
-    # --- :http_bearer_auth ------------------------------------------------
-    # n8n: HttpBearerAuth.credentials.ts:1-43.
+    # Bearer token authentication.
     HTTP_BEARER_AUTH = CredentialSchema.build do
       display_name      "Bearer Auth"
-      documentation_url "httprequest"
+      documentation_url "https://github.com/jackhelio/connectors/blob/main/CONNECTORS_FRAMEWORK.md#6-built-in-base-credential-types"
       generic_auth!
 
       field :token,
@@ -65,13 +48,10 @@ module Connectors
       }
     end
 
-    # --- :http_header_auth ------------------------------------------------
-    # n8n: HttpHeaderAuth.credentials.ts:1-45. Both header NAME and VALUE
-    # are templated — AuthInjection.walk resolves keys as well as values
-    # (see auth_injection.rb).
+    # Both header name and value are resolved from credential templates.
     HTTP_HEADER_AUTH = CredentialSchema.build do
       display_name      "Header Auth"
-      documentation_url "httprequest"
+      documentation_url "https://github.com/jackhelio/connectors/blob/main/CONNECTORS_FRAMEWORK.md#6-built-in-base-credential-types"
       generic_auth!
 
       field :name,
@@ -94,12 +74,10 @@ module Connectors
       }
     end
 
-    # --- :http_query_auth -------------------------------------------------
-    # n8n: HttpQueryAuth.credentials.ts:1-30. n8n's HTTP node handles
-    # injection imperatively; we synthesize the equivalent generic block.
+    # Query parameter authentication.
     HTTP_QUERY_AUTH = CredentialSchema.build do
       display_name      "Query Auth"
-      documentation_url "httprequest"
+      documentation_url "https://github.com/jackhelio/connectors/blob/main/CONNECTORS_FRAMEWORK.md#6-built-in-base-credential-types"
       generic_auth!
 
       field :name,
@@ -117,19 +95,10 @@ module Connectors
       }
     end
 
-    # --- :http_digest_auth ------------------------------------------------
-    # n8n: HttpDigestAuth.credentials.ts:1-32. n8n consumes this via axios's
-    # built-in digest challenge handling. Faraday has no equivalent
-    # middleware out of the box — we ship the SCHEMA (so the frontend can
-    # render the form + a future generic HTTP-Request node can offer the
-    # type) but the AuthenticateGeneric middleware can't perform the
-    # challenge-response handshake on its own.
-    #
-    # Runtime support requires a Faraday-Digest middleware. Tracked as a
-    # follow-up; for now the type is form-only.
+    # Digest credential form only; no challenge-response runtime is provided.
     HTTP_DIGEST_AUTH = CredentialSchema.build do
       display_name      "Digest Auth"
-      documentation_url "httprequest"
+      documentation_url "https://github.com/jackhelio/connectors/blob/main/CONNECTORS_FRAMEWORK.md#6-built-in-base-credential-types"
       generic_auth!
 
       field :user,
@@ -142,20 +111,14 @@ module Connectors
             default:      "",
             secret:       true
 
-      # No authenticate block — requires challenge-response middleware
-      # (Faraday-Digest gem or equivalent). Phase 2 ships the schema only.
+      # No authenticate block: digest challenge handling is not implemented.
     end
 
-    # --- :http_custom_auth ------------------------------------------------
-    # n8n: HttpCustomAuth.credentials.ts:1-29. Single `json` field carrying
-    # `{ headers, body, qs }`. n8n's HTTP node parses this JSON at request
-    # time and applies it. Our AuthenticateGeneric middleware works on a
-    # static `properties` block; runtime injection of a user-supplied JSON
-    # is deferred until a Custom-API-Call style node lands (workflow
-    # roadmap). Phase 2 ships the schema only.
+    # Custom JSON credential form only; user-supplied JSON is not
+    # applied to outbound requests by this schema.
     HTTP_CUSTOM_AUTH = CredentialSchema.build do
       display_name      "Custom Auth"
-      documentation_url "httprequest"
+      documentation_url "https://github.com/jackhelio/connectors/blob/main/CONNECTORS_FRAMEWORK.md#6-built-in-base-credential-types"
       generic_auth!
 
       field :json,

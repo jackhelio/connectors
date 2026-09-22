@@ -71,8 +71,7 @@ module Connectors
         @rate_limit_config = { limit: count, per: per }
       end
 
-      # Declarative "Test connection" — mirrors n8n's `ICredentialTestRequest`
-      # (packages/workflow/src/interfaces.ts:340-348). The test fires a real
+      # Declarative connection test. Fires a real
       # HTTP request via the connector's middleware stack (so credentials are
       # injected the same way they would be at runtime) and applies the
       # configured rules to decide pass/fail.
@@ -99,10 +98,6 @@ module Connectors
         }
       end
 
-      # n8n-style declarative auth injection (mirrors `IAuthenticateGeneric`
-      # at packages/workflow/src/interfaces.ts:278-288 + the shape of
-      # `IRequestOptionsSimplifiedAuth` at :197-208).
-      #
       # `properties` accepts any subset of:
       #   headers:                  { "Authorization" => "=Bearer {{$credentials.api_key}}" }
       #   qs:                       { "api_key" => "={{$credentials.api_key}}" }
@@ -118,12 +113,12 @@ module Connectors
       #     headers: { "Authorization" => "=Bearer {{$credentials.api_key}}" }
       #   }
       #
-      # When declared, this replaces the old `api_key_in` imperative shim
+      # When declared, this replaces the imperative `api_key_in` configuration
       # at runtime — both the schema serializer and the Faraday client
       # honor the declarative form first, falling back to `api_key_in` only
       # if `authenticate` is absent.
       def authenticate(type:, properties:)
-        raise ArgumentError, "only type: :generic is supported (n8n's IAuthenticateGeneric)" \
+        raise ArgumentError, "only type: :generic is supported" \
           unless type.to_sym == :generic
         @authenticate_config = { "type" => "generic", "properties" => properties }
       end
@@ -136,15 +131,8 @@ module Connectors
         @authenticate_config || @credential_schema&.resolved_authenticate
       end
 
-      # n8n's `preAuthentication` hook (interfaces.ts:374-377). The block
-      # runs BEFORE each outgoing request, but only when the grant's
-      # credentials look stale (`expires_at` missing or in the past).
-      # Returns a hash merged into the grant's credentials before the
-      # AuthenticateGeneric step injects them into the request.
-      #
-      # Reference impl: CrowdStrikeOAuth2Api.credentials.ts:62-76 —
-      # fetches a session token from /oauth2/token using client_id +
-      # client_secret, returns `{ session_token, expires_at }`.
+      # Run before outgoing requests when expires_at is absent or past.
+      # Merge returned credentials before authentication injection.
       #
       #   pre_authentication do |credentials, helpers|
       #     response = helpers.http_request(
@@ -162,13 +150,11 @@ module Connectors
 
       attr_reader :pre_authentication_block
 
-      # Imperative API-key shim — kept for back-compat with connectors that
-      # declared `api_key_in` before Phase 1. New code should use the
-      # declarative `authenticate` DSL above. When both are declared,
-      # `authenticate` wins.
+      # Imperative API-key injection. A declared authenticate block takes
+      # precedence over this setting.
       #
       #   api_key_in :header, name: "Authorization", prefix: "token "
-      #   api_key_in :query,  name: "api_key"
+      #   api_key_in :query, name: "api_key"
       def api_key_in(location, name:, prefix: nil)
         @api_key_options = { location: location, name: name, prefix: prefix }
       end
@@ -178,14 +164,13 @@ module Connectors
       # Declares OAuth2 provider endpoints + default scope. Client id/secret
       # are supplied by the host via Connectors.configuration.oauth_credentials.
       #
-      # `grant_type:` mirrors n8n's `OAuth2Api.credentials.ts:33-46` enum and
-      # selects the runtime flow:
+      # `grant_type:` selects the runtime flow:
       #   - "authorizationCode" (default) — standard redirect flow
       #   - "clientCredentials"           — server-to-server, no user redirect
       #   - "pkce"                        — RFC 7636 with S256 challenge
       #
       # `authentication:` (header | body) — how client credentials are sent
-      # to the token endpoint. Matches n8n's same-named field. Default
+      # to the token endpoint. Default
       # `"header"` (HTTP Basic).
       #
       #   oauth2 authorize_url: "https://slack.com/oauth/v2/authorize",
@@ -214,8 +199,7 @@ module Connectors
 
       # Declares OAuth1.0a provider endpoints + consumer signature method.
       # Consumer key/secret come from `Connectors.configuration.oauth_credentials`
-      # (same `client_id` / `client_secret` slot as OAuth2 — they're
-      # semantically identical in n8n's storage too).
+      # using the same client_id / client_secret configuration keys as OAuth2.
       #
       #   oauth1 request_token_url: "https://api.twitter.com/oauth/request_token",
       #          authorize_url:     "https://api.twitter.com/oauth/authorize",
@@ -257,10 +241,8 @@ module Connectors
 
       attr_reader :revoke_token_block
 
-      # n8n's `__skipManagedCreation` (frontend.service.ts:707-711). When
-      # an admin disables managed-credential creation for this type, the
-      # editor hides the "Use external secret" toggle AND the API refuses
-      # POSTs that pass `is_managed: true`. Surfaces on the types endpoint.
+      # Disable managed-credential creation in the catalog and API.
+      # Requests passing is_managed: true are rejected for this type.
       def skip_managed_creation!
         @skip_managed_creation = true
       end
@@ -269,16 +251,10 @@ module Connectors
         @skip_managed_creation == true
       end
 
-      # n8n's `genericAuth: boolean` flag on `ICredentialType`
-      # (interfaces.ts:379). Marks the credential as eligible for the future
-      # generic HTTP-Request node's picker. Most provider-specific connectors
-      # leave this off; generic HTTP types (HttpBearerAuth etc.) flip it on.
-      # Connector-level call so non-`extends` connectors can opt in directly:
+      # Enable generic HTTP-request credential use. The setting is also
+      # inherited from base credential schemas.
       #
       #   generic_auth!
-      #
-      # When the connector `extends` an Http*Auth schema, the schema's flag
-      # already propagates — but this stays available as a per-connector override.
       def generic_auth!
         @generic_auth = true
       end
@@ -288,14 +264,10 @@ module Connectors
         @credential_schema&.generic_auth? || false
       end
 
-      # n8n's `supportedNodes: string[]` (interfaces.ts:381). When set, only
-      # the listed node types are allowed to use this credential. Empty/unset
-      # means "any node may use it" — same default as n8n.
+      # Restrict credential use to listed node types; an empty list is unrestricted.
+      # Hosts enforce this through Connectors::PermissionCheck.permit!.
       #
       #   supported_nodes :slack_send_message, :slack_get_channel
-      #
-      # The check itself is `Connectors::PermissionCheck.permit!` — call it
-      # from your node's execution wrapper to enforce.
       def supported_nodes(*names)
         if names.empty?
           @supported_nodes || []
@@ -304,11 +276,7 @@ module Connectors
         end
       end
 
-      # n8n's `httpRequestNode: { name, docsUrl, apiBaseUrl | apiBaseUrlPlaceholder, hidden? }`
-      # (interfaces.ts:380; type `ICredentialHttpRequestNode` at :350-354).
-      # Advertises the connector to the generic HTTP-Request node's
-      # "credential picker" UI — the user sees "Linear API" alongside the
-      # docs link + a pre-filled base URL.
+      # Optional label, documentation and base URL for an HTTP credential picker.
       #
       #   http_request_node name: "Linear API",
       #                     docs_url: "https://developers.linear.app/",
@@ -319,8 +287,7 @@ module Connectors
         # + `docs_url:` + one of the base-URL slots.
         return @http_request_node if name.nil? && docs_url.nil?
         unless api_base_url || api_base_url_placeholder
-          raise ArgumentError, "http_request_node requires either api_base_url or api_base_url_placeholder " \
-                               "(n8n's `ICredentialHttpRequestNode` union, interfaces.ts:350-354)"
+          raise ArgumentError, "http_request_node requires either api_base_url or api_base_url_placeholder"
         end
         @http_request_node = {
           "name"                  => name,
@@ -331,11 +298,8 @@ module Connectors
         }.compact
       end
 
-      # Combined predicate used by `Connectors::PermissionCheck.permit!`.
-      # n8n's logic (oauth/credentials.controller flow, applied at credential
-      # picker render time): if `supportedNodes` is non-empty, the requesting
-      # node must be in it. The generic HTTP-Request node bypasses this
-      # check entirely when `genericAuth` is true on the credential type.
+      # An empty supported_nodes list allows any node. Otherwise require an
+      # allowlist match, with an exception for :http_request when generic_auth is set.
       def supports_node?(node_type)
         node_type = node_type.to_sym
         return true if supported_nodes.empty?           # no allowlist → permitted
@@ -399,12 +363,9 @@ module Connectors
         (@webhook_groups || {}).keys
       end
 
-      # Polling primitive — n8n's `polling: true` flag + `poll()` method
-      # on trigger nodes (interfaces.ts:2060; reference impl
-      # `nodes-base/nodes/Google/Gmail/GmailTrigger.node.ts:65, 281-553`).
-      # The block runs once per scheduler tick (or once per manual POST to
-      # /poll), receives the per-grant scratch hash for cursor persistence,
-      # and returns the new items.
+      # Runs once per host-scheduled poll and returns new items. PollRunner
+      # supplies cursor state scoped to the instance_key, or to the grant
+      # when no instance_key is provided. The host owns scheduling.
       #
       #   polling do |grant, static_data|
       #     since = static_data["last_id"]
@@ -412,9 +373,6 @@ module Connectors
       #     static_data["last_id"] = items.first["id"] if items.any?
       #     items
       #   end
-      #
-      # The scheduler itself is a workflow-roadmap concern; the connector
-      # side just provides the block + cursor contract.
       def polling(&block)
         @polling_block = block
       end
@@ -464,12 +422,8 @@ module Connectors
         end
       end
 
-      # Declarative action manifest — what this connector can DO with a
-      # credential. Mirrors n8n's `(resource, operation)` slot
-      # (packages/workflow/src/interfaces.ts NodeProperties) and Activepieces'
-      # `createAction(...)`. Each action gets a typed param schema, an
-      # optional output schema, and an execute block that runs in the
-      # connector instance's context.
+      # Declare a provider operation with input fields, optional output fields
+      # and an execute block evaluated in the connector instance.
       #
       #   action :send_email,
       #          display_name: "Send Email",
@@ -521,10 +475,8 @@ module Connectors
       @grant = grant
     end
 
-    # The Faraday client with the full middleware stack assembled. When the
-    # connector class (or its inherited credential schema, via Phase 2)
-    # declares an `authenticate` block, AuthenticateGeneric middleware
-    # applies it; otherwise the imperative `auth_scheme` is used.
+    # Build the Faraday middleware stack. A connector or inherited schema
+    # authenticate block takes precedence over the imperative auth_scheme.
     def client
       @client ||= ClientBuilder.new(
         base_url:            self.class.base_url,
@@ -546,13 +498,9 @@ module Connectors
     # the connector opts into polling.
     def poll; end
 
-    # Override in subclass. Called by the webhook dispatcher when an event
-    # arrives for this grant. The argument is a `Connectors::WebhookContext`
-    # (Phase 7) exposing `.body`, `.headers`, `.query`, `.raw_body`,
-    # `.webhook_name`, `.signature`, `.grant`, plus `.event` for direct
-    # access to the persisted `Connectors::WebhookEvent`. The context
-    # delegates `.payload_hash` / `.payload` for back-compat with handlers
-    # written before Phase 7 — the same method works on both.
+    # Override to process a WebhookContext from DeliverWebhookJob.
+    # The context exposes body, headers, query, raw_body, webhook_name,
+    # signature and grant, plus the persisted event and payload aliases.
     def handle_webhook(ctx); end
 
     # Convenience — validates the grant's credentials against the connector's

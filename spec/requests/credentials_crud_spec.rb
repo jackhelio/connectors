@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "Credentials CRUD — n8n-shape", type: :request do
+RSpec.describe "Credentials CRUD", type: :request do
   let(:owner)       { Owner.create!(name: "alice") }
   let(:other_owner) { Owner.create!(name: "bob") }
 

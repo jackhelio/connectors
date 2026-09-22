@@ -1,12 +1,6 @@
 module Connectors
-  # n8n-shaped credential CRUD. Underneath, a "credential" is a Grant — but
-  # this controller exposes it under the vocabulary the frontend uses
-  # (matches packages/cli/src/credentials/credentials.controller.ts:67-411).
-  #
-  # The paste-the-key flow lives here: `POST /credentials` with `{type,
-  # name, data}` creates a Grant directly without the OAuth dance.
-  # OAuth-issued grants continue to flow through OAuthController#callback
-  # and show up in this list automatically.
+  # Credential CRUD backed by Grant records. POST accepts `{type, name, data}`
+  # for API-key connections. OAuth-created grants appear in the same list.
   class CredentialsController < ApplicationController
     # Order matters: Rails `rescue_from` iterates in REVERSE declaration
     # order, so the more-specific subclasses must be declared AFTER
@@ -24,8 +18,7 @@ module Connectors
     #
     # Returns the union of: credentials this owner owns + credentials shared
     # with any of the requester's principals (User, Team, Project — whatever
-    # the host's `principal_resolver` returns). n8n parity:
-    # enterprise/credentials.controller.ee.ts.
+    # the host's `principal_resolver` returns).
     def index
       grants = visible_grants
       grants = grants.for_connector(params[:type]) if params[:type].present?
@@ -53,8 +46,7 @@ module Connectors
     # When `is_managed: true` is passed (typically alongside `external_ref:
     # "vault/path/foo"`), the DB only stores the reference + non-sensitive
     # field defaults; the actual credential values come from the host's
-    # `secrets_resolver` at request time. n8n parity: external-secrets EE
-    # module (external-secrets.controller.ee.ts).
+    # `secrets_resolver` at request time.
     def create
       owner = current_owner!
       type  = params.fetch(:type)
@@ -81,9 +73,7 @@ module Connectors
     end
 
     # GET /connectors/credentials/new?type=resend
-    # Server-generated unique default name ("Resend account 3"). n8n parity:
-    # `credentials.controller.ts:100-111`. The frontend pre-fills the name
-    # field with the response so the user can rename or accept the default.
+    # Returns a unique suggested name, such as "Resend account 3".
     def new
       current_owner!
       type = params.fetch(:type)
@@ -156,8 +146,7 @@ module Connectors
     end
 
     # PUT /connectors/credentials/:id/transfer
-    # Body: { owner_id: <uuid> } — moves ownership to a different owner.
-    # n8n parity: enterprise/credentials.controller.ee.ts transfer endpoint.
+    # Body: { owner_id: <uuid> } — transfers ownership to another host owner.
     def transfer
       grant         = find_visible_grant!(params[:id], min_role: :owner)
       new_owner_klass = Connectors.configuration.owner_class_name.constantize
@@ -203,7 +192,7 @@ module Connectors
     def serialize(grant, include_data: false)
       h = {
         id:                  grant.id,
-        type:                grant.connector_key,                       # n8n name
+        type:                grant.connector_key,
         connector_key:       grant.connector_key,                       # @deprecated alias
         name:                grant.display_name || "#{grant.connector_key} ##{grant.id}",
         external_account_id: grant.external_account_id,
@@ -213,13 +202,11 @@ module Connectors
         created_at:          grant.created_at,
         updated_at:          grant.updated_at,
         scopes:              extract_scopes(grant),
-        # Phase 10 — external secrets manager. `is_managed: true` means the
-        # actual credential values are vault-sourced; `external_ref` is the
-        # opaque key the host's `secrets_resolver` uses to look them up.
+        # `is_managed` selects vault-sourced credentials. `external_ref` is
+        # the opaque lookup key passed to the host secrets resolver.
         is_managed:          grant.is_managed,
         external_ref:        grant.external_ref,
-        # n8n's `__overwrittenProperties` (interfaces.ts:382) but per-grant
-        # so the editor can show "this field comes from Vault: <api_key>".
+        # Field names sourced from the vault, for display as managed inputs.
         __overwritten_properties: grant.is_managed ? Connectors.configuration.managed_fields_for(grant.connector_key) : []
       }
       if include_data

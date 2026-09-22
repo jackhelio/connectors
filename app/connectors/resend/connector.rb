@@ -35,10 +35,8 @@ module Resend
             description:  "Generate at https://resend.com/api-keys."
     end
 
-    # Phase 1 — declarative auth injection (mirrors n8n's HttpBearerAuth at
-    # packages/nodes-base/credentials/HttpBearerAuth.credentials.ts:38-45).
-    # The `={{...}}` template is resolved per-request from the Grant's
-    # credentials hash by `Middleware::AuthenticateGeneric`.
+    # AuthenticateGeneric resolves this template from the grant's
+    # credentials for each outgoing request.
     authenticate type: :generic, properties: {
       headers: { "Authorization" => "=Bearer {{$credentials.api_key}}" }
     }

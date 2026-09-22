@@ -1,7 +1,6 @@
 module Connectors
   # Executes a connector's `test_request` declaration against the live
-  # provider, applying configured rules to decide pass/fail. Mirrors n8n's
-  # `CredentialsTester` (packages/cli/src/services/credentials-tester.service.ts).
+  # provider, applying configured rules to decide pass/fail.
   #
   #   result = CredentialTester.run(grant)
   #   # => { status: "OK", message: "Connection successful" }
@@ -9,8 +8,8 @@ module Connectors
   #   # => { status: "Error", message: "Slack token is invalid", details: {...} }
   #
   # Reuses the connector's Faraday client so the same auth middleware,
-  # auto-refresh, rate-limit, and error-normalization apply — a test that
-  # passes here means a real request will pass too.
+  # auto-refresh, rate-limit and error normalization apply. A successful
+  # test verifies this request, not permissions for every provider operation.
   class CredentialTester
     OK    = "OK".freeze
     ERROR = "Error".freeze

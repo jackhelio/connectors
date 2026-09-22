@@ -2,8 +2,7 @@ require "base64"
 
 module Gmail
   # Parses Google's `messages.get?format=full` payload tree into a clean,
-  # downstream-friendly shape. Mirrors the work `parseRawEmail` does in
-  # n8n's `Gmail/GenericFunctions.ts` (which delegates to mailparser).
+  # normalized message envelope.
   #
   # Google returns:
   #   { payload: {

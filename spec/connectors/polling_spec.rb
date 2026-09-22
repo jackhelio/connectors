@@ -1,11 +1,7 @@
 require "rails_helper"
 
-# Phase 8 — polling primitive. The connector declares a block that fetches
-# new items since the last cursor and stashes the new cursor on the grant.
-# n8n parity: `INodeType#poll` (interfaces.ts:2060) + cursor persistence
-# via `getWorkflowStaticData('node')` (interfaces.ts:1257-1274). Reference
-# impl: `nodes-base/nodes/Google/Gmail/GmailTrigger.node.ts:65, 281-553`.
-RSpec.describe "Phase 8 — polling DSL + cursor" do
+# Polling callbacks return new items and persist their cursor state.
+RSpec.describe "polling DSL + cursor" do
   let(:owner) { Owner.create!(name: "p8 owner") }
 
   # Gmail-shaped polling: GET /messages?since=<last_id> returns items in

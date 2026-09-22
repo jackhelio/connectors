@@ -73,10 +73,8 @@ module Connectors
       credentials || {}
     end
 
-    # Mirrors n8n's `getWorkflowStaticData('node')` — a small scratch hash
-    # the connector mutates between webhook lifecycle calls (or polling
-    # cursors). Save with `save!` after mutation, or use
-    # `update_static_data!(group, &block)` for the atomic path.
+    # Scratch storage for webhook subscriptions and polling cursors.
+    # Save after mutation or use update_static_data! for an atomic update.
     def static_data_hash
       static_data || {}
     end

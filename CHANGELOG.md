@@ -4,6 +4,11 @@ Changes are recorded here before release. Published packages are listed on [Ruby
 
 ## Unreleased
 
+### Documentation
+
+- Describe connector contracts directly across guides, API metadata, source comments and test names.
+- Remove obsolete demo smoke scripts from the public source tree; supported development and package checks are documented in the contributing guide.
+
 ## 0.1.0 — 2026-09-22
 
 ### Added

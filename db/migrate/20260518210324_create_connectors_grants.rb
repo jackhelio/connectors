@@ -14,19 +14,12 @@ class CreateConnectorsGrants < ActiveRecord::Migration[8.1]
       t.datetime :last_used_at
       t.string   :external_account_id               # provider-side user/account id, if applicable
 
-      # Per-grant scratch storage for webhook subscriptions + polling cursors
-      # (n8n parity: `getWorkflowStaticData('node')` at interfaces.ts:1257-1274).
-      # Each `webhook_methods` group writes into its own nested hash keyed
-      # by the group name, so multi-webhook providers can persist
-      # independent state per subscription type.
+      # Per-grant scratch storage. Each webhook group uses its own nested hash
+      # for independent subscription state.
       t.jsonb    :static_data,         null: false, default: {}
 
-      # External secrets manager integration. A grant either stores its
-      # credentials inline (DB-encrypted) OR carries a lightweight
-      # `external_ref` that the host's vault adapter resolves on demand.
-      # n8n parity: `__overwrittenProperties` on the credential type
-      # (interfaces.ts:382), populated by frontend.service.ts:681-705
-      # when the external-secrets EE module is active.
+      # Managed credentials use an opaque external_ref resolved by the host.
+      # Stored credential values are encrypted by the Grant model.
       t.string   :external_ref
       t.boolean  :is_managed,          null: false, default: false
 

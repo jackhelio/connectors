@@ -1,9 +1,7 @@
 module Connectors
   # Declarative description of one thing a connector can DO with a credential
-  # — Slack "post message", Resend "send email", GitHub "create issue". The
-  # equivalent of an n8n node's `(resource, operation)` slot
-  # (packages/workflow/src/interfaces.ts NodeProperties) and Activepieces'
-  # `createAction(...)` declaration.
+  # — Slack "post message", Resend "send email", GitHub "create issue". Each
+  # action describes its inputs, outputs and execution handler.
   #
   # The class is a value object — `ActionBuilder` materialises it from the
   # DSL, `Connector.actions` stores them, `ActionRunner` invokes them.
@@ -30,9 +28,8 @@ module Connectors
   #     end
   #   end
   class Action
-    # n8n's `NodePropertyTypes` (interfaces.ts:1561-1584) — a superset of what
-    # credentials accept. Action params can be richer than credential fields
-    # because they're the user's per-execution inputs, not the auth setup.
+    # Supported action input types. Action fields include collections and
+    # other per-execution inputs beyond the credential form types.
     ALLOWED_TYPES = %w[
       string number boolean
       options multiOptions

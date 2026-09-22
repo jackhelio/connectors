@@ -1,15 +1,15 @@
 # Connectors Framework Reference
 
-Developer reference for the `connectors` Rails engine. Historical n8n source references describe design inspiration; they are not a claim of current n8n parity. For installation and supported environments, start with the [README](README.md).
+Developer reference for the `connectors` Rails engine. For installation and supported environments, start with the [README](README.md).
 
-Current behavior is verified by the repository test suite. [Architecture](docs/architecture.md), [connector authoring](docs/adding-connectors.md) and [MCP support](MCP_CLIENT.md) cover the newer action and remote-tool paths.
+Current behavior is verified by the repository test suite. [Architecture](docs/architecture.md), [connector authoring](docs/adding-connectors.md) and [MCP support](MCP_CLIENT.md) describe action execution and remote tools.
 
 ---
 
 ## 1. Architecture
 
 ```
-flow-api (host Rails app)
+Host Rails application
    └─ mounts Connectors::Engine at <host-chosen prefix>   (e.g. /api/v1/connectors)
         ├─ Configuration block       (host wires owner / OAuth secrets / vault)
         ├─ Registry                  (loaded at boot from app/connectors/*/)
@@ -31,7 +31,7 @@ flow-api (host Rails app)
 
 **Mount-path independence.** The host picks where to mount the engine in `config/routes.rb`. The engine introspects the actual mount path at boot (`Connectors::Engine.mount_path`) and every URL builder (OAuth callback, default webhook URL, types-endpoint `redirect_uri` field) is wired through it. No `mount_path` configuration in initializers, no string concatenation traps — the host's routes file is the single source of truth. See §1.1 below.
 
-**No expression engine.** Phase 1 ships a tiny `{{$credentials.<field>}}` substitutor (`Connectors::AuthInjection`) scoped to credential templates. The connectors engine stays workflow-independent — anything richer belongs in the automations engine.
+**Credential templates.** `Connectors::AuthInjection` substitutes `{{$credentials.<field>}}` lookups in authentication properties. It does not evaluate general expressions or workflow logic.
 
 ### 1.1 Mount-path introspection
 
@@ -59,7 +59,7 @@ Concrete consequences:
 | Default `hook_url` for `POST /grants/:id/webhook_subscribe` | hardcoded `<host>/connectors/...` | matches the mount, whatever it is |
 | `GET /types/:name` `connector.redirect_uri` / `authorize_url` / `authorize_json_url` | hardcoded | matches the mount |
 
-The host can remount under any prefix (`/api/v2/connectors`, `/_/integrations`, etc.) and everything Just Works.
+For example, a mount under `/api/v2/connectors` produces callbacks and webhook URLs under that prefix.
 
 ---
 
@@ -82,7 +82,7 @@ Registers the connector. **Required** — every connector class calls this first
 | Arg | Type | Meaning |
 |---|---|---|
 | `key:` | symbol | machine identifier, unique per app (`:slack`) |
-| `auth:` | symbol | legacy auth scheme name (`:api_key`, `:oauth2`). Kept for back-compat with pre-Phase-1 connectors. New code should rely on `authenticate` (§3.3). |
+| `auth:` | symbol | auth scheme name (`:api_key`, `:oauth2`). A declared `authenticate` block takes precedence for request injection (§3.3). |
 | `base_url:` | string | every `client.get`/`post`/etc. is relative to this |
 | `display_name:` | string | UI label (defaults to `key.humanize`) |
 | `icon:` | string | URL or asset path |
@@ -95,7 +95,7 @@ Declares the credential form. Inner block uses `field` (see §4).
 
 ### 3.3 `authenticate type: :generic, properties: { ... }`
 
-Declarative auth injection. Mirrors n8n's `IAuthenticateGeneric` (`packages/workflow/src/interfaces.ts:269-288`). `properties` accepts any subset of:
+Declarative authentication injection into outgoing requests. `properties` accepts any subset of:
 
 ```ruby
 authenticate type: :generic, properties: {
@@ -155,7 +155,7 @@ oauth1 request_token_url: "https://api.twitter.com/oauth/request_token",
        signature_method:  "HMAC-SHA1"   # or HMAC-SHA256 / HMAC-SHA512
 ```
 
-Engine signs request-token + access-token legs inline (no `oauth-1.0a` gem). Consumer key/secret come from `Connectors.configuration.oauth_credentials_for(connector_key)` — same slot as OAuth2's client id/secret.
+The engine signs request-token and access-token exchanges. Consumer key/secret come from `Connectors.configuration.oauth_credentials_for(connector_key)` — same slot as OAuth2's client id/secret.
 
 ### 3.7 `revoke_token_url "..."` / `revoke_token { |grant| ... }`
 
@@ -173,7 +173,7 @@ end
 
 ### 3.8 `test_request method:, url:, headers:, query:, expect_status:, rules:`
 
-Declarative "Test connection". Mirrors n8n's `ICredentialTestRequest` (`interfaces.ts:340-348`).
+Connection test performed through the connector client, using its authentication and middleware.
 
 ```ruby
 test_request method: :get, url: "auth.test",
@@ -223,7 +223,7 @@ The controller calls `webhook_style` to know whether to expect `:app_level` (sin
 
 ### 3.12 `webhook_methods(:group) do ... end`
 
-Subscription lifecycle. n8n parity: `INodeType.webhookMethods.default.{checkExists, create, delete}`.
+Subscription lifecycle with `check_exists`, `create` and `delete` callbacks.
 
 ```ruby
 webhook_methods do                       # group :default (implicit)
@@ -278,7 +278,7 @@ Manual fire: `POST <mount>/grants/:id/poll` with optional `instance_key`. Return
 
 ### 3.14 `generic_auth!`, `supported_nodes :...`, `http_request_node ...`
 
-n8n credential-visibility flags (`interfaces.ts:379-381`):
+Credential visibility and HTTP-request picker metadata:
 
 ```ruby
 generic_auth!                                            # eligible for the HTTP-Request node picker
@@ -311,7 +311,7 @@ end
 
 ```ruby
 def refresh!; end                # called by AutoRefresh middleware on 401
-def poll; end                    # called by polling scheduler (workflow-roadmap)
+def poll; end                    # called by PollJob; PollRunner uses the separate polling DSL
 def handle_webhook(ctx); end     # called by DeliverWebhookJob; ctx = WebhookContext
 def validate_credentials!; end   # auto: runs CredentialSchema.validate! against grant
 ```
@@ -320,7 +320,7 @@ def validate_credentials!; end   # auto: runs CredentialSchema.validate! against
 
 ## 4. CredentialSchema Field Reference
 
-`Connectors::CredentialSchema::Field` mirrors n8n's `INodeProperties` (`interfaces.ts:1773-1812`):
+`Connectors::CredentialSchema::Field` describes an input and its rendering metadata:
 
 ```ruby
 field :api_key,
@@ -338,23 +338,26 @@ field :api_key,
       options:            [{ name: "Header", value: "header" }]
 ```
 
-`type_options` flags propagate to the editor verbatim:
-- `password: true` — masked input + redacted in serializer responses
-- `expirable: true` — UI marks the field as "will rotate"
-- `redactJsonLeaves: true` — JSON leaf values masked in error messages / logs
-- `resolvable_field: true` — field accepts `{{ }}` expressions
+`type_options` flags are serialized as form metadata for host renderers:
+
+- `password: true` — suggests a masked input; also set by `secret: true`
+- `expirable: true` — indicates a value that may rotate
+- `redactJsonLeaves: true` — suggests masking JSON leaf values
+- `resolvable_field: true` — indicates a host-resolvable input
+
+These flags do not implement token rotation, log filtering or expression evaluation. Credential response access is enforced separately by the sharing policy; owner responses can include decrypted secrets.
 
 Inheritance via `extends`:
 
 ```ruby
 credentials do
-  extends :oauth2                              # inherit OAuth2Api base fields
+  extends :oauth2                              # inherit OAuth2 base fields
   field :authorization_url, type: "hidden",    # lock provider endpoint
         default: "https://slack.com/oauth/v2/authorize"
 end
 ```
 
-Children override parents by redeclaring with the same field name. Most-specific wins. Same precedence rule n8n's credential-walker uses (`packages/cli/src/credential-types.ts:26-37`).
+Children override parents by redeclaring with the same field name. Most-specific wins.
 
 ### Schema-level DSL
 
@@ -364,7 +367,7 @@ Inside `credentials do ... end`:
 - `authenticate type: :generic, properties: {...}` — schema-level injection (inherited by every connector that `extends` this schema)
 - `generic_auth!` — mark eligible for HTTP-Request node
 - `display_name "Bearer Auth"` — UI label for the credential type itself
-- `documentation_url "httprequest"` — n8n docs slug
+- `documentation_url "https://provider.example/docs/auth"` — documentation link
 
 ---
 
@@ -384,7 +387,7 @@ Connectors.configure do |c|
   }
 
   # ---- Optional: webhook dispatch hook -----------------------------------
-  c.on_webhook = ->(event) { Inbox::IngestJob.perform_later(event.id) }
+  c.on_webhook = ->(event) { ProcessWebhookJob.perform_later(event.id) }
 
   # ---- Optional: sharing principals (host middleware supplies trusted owner) ----------------------------
   c.principal_resolver = ->(ctrl) {
@@ -392,13 +395,15 @@ Connectors.configure do |c|
     owner ? [[owner.class.name, owner.id]] : []
   }
 
-  # ---- Optional: external secrets manager (Phase 10) ---------------------
+  # ---- Optional: external secrets manager ---------------------
   c.secrets_resolver           = ->(grant) { vault.read(grant.external_ref) }
   c.secrets_managed_fields_for = ->(key)   { { slack: %w[client_secret] }.fetch(key.to_sym, []) }
 end
 ```
 
 The Rack owner entry in this example must be populated by trusted host authentication middleware; engine controllers do not inherit host controller callbacks. Slack/Twitter configuration here illustrates custom OAuth connectors, not shipped profiles.
+
+`ProcessWebhookJob` and `vault` are examples supplied by the host.
 
 All callables are invoked with `Connectors.configuration.<name>.call(...)` — the engine never invokes host constants directly.
 
@@ -408,16 +413,16 @@ All callables are invoked with `Connectors.configuration.<name>.call(...)` — t
 
 Registered on engine boot in `Connectors::CredentialTypeRegistry`. Connectors `extends` any of these.
 
-| Key | n8n source | Engine status |
-|---|---|---|
-| `:oauth2` | `OAuth2Api.credentials.ts:1-238` | ✅ all 3 grant types + JWE form fields |
-| `:oauth1_api` | `OAuth1Api.credentials.ts:1-72` | ✅ HMAC-SHA1/256/512 |
-| `:http_basic_auth` | `HttpBasicAuth.credentials.ts` | ✅ Basic header via `auth:` shortcut |
-| `:http_bearer_auth` | `HttpBearerAuth.credentials.ts` | ✅ Authorization: Bearer |
-| `:http_header_auth` | `HttpHeaderAuth.credentials.ts` | ✅ user-named header (templated key) |
-| `:http_query_auth` | `HttpQueryAuth.credentials.ts` | ✅ user-named query param |
-| `:http_digest_auth` | `HttpDigestAuth.credentials.ts` | ⚠️ schema only (Faraday-Digest gem TBD) |
-| `:http_custom_auth` | `HttpCustomAuth.credentials.ts` | ⚠️ schema only (runtime in Custom-API-Call node) |
+| Key | Support |
+|---|---|
+| `:oauth2` | Authorization code, client credentials and PKCE flows. JWE fields are form metadata only; no JWE decryption. |
+| `:oauth1_api` | HMAC-SHA1, HMAC-SHA256 and HMAC-SHA512 signing. |
+| `:http_basic_auth` | Basic authentication through the `auth:` shortcut. |
+| `:http_bearer_auth` | Authorization bearer token. |
+| `:http_header_auth` | Credential-defined header name and value. |
+| `:http_query_auth` | Credential-defined query parameter name and value. |
+| `:http_digest_auth` | Form schema only; no digest challenge handling. |
+| `:http_custom_auth` | Form schema only; no runtime injection of custom JSON. |
 
 ---
 
@@ -437,7 +442,7 @@ One row = one authorized account. Columns:
 | `expires_at`, `last_used_at` | datetime | |
 | `external_account_id` | string | denormalized provider-side id for webhook routing |
 | `static_data` | jsonb | per-group scratch (webhook + polling cursor state) |
-| `external_ref`, `is_managed` | string + bool | external secrets manager (Phase 10) |
+| `external_ref`, `is_managed` | string + bool | external secrets manager |
 
 Methods:
 
@@ -539,9 +544,9 @@ All persist a `WebhookEvent` and enqueue `DeliverWebhookJob` → calls `Connecto
 
 ---
 
-## 9. `WebhookContext` (Phase 7)
+## 9. `WebhookContext`
 
-Passed to `Connector#handle_webhook`. Mirrors n8n's `IWebhookFunctions` (`interfaces.ts:1327-1350`).
+Passed to `Connector#handle_webhook` with the captured request data and persisted event.
 
 ```ruby
 def handle_webhook(ctx)
@@ -632,7 +637,7 @@ POST /credentials/:id/revoke    → revoke_token block OR RFC 7009 POST to revok
 
 ---
 
-## 12. Webhook Subscription Lifecycle (Phase 6)
+## 12. Webhook Subscription Lifecycle
 
 ```
 POST /grants/:id/webhook_subscribe   (optional: webhook_name, hook_url)
@@ -652,7 +657,7 @@ Default `hook_url` is computed from `host_base_url` + `connector_key` + grant_id
 
 ---
 
-## 13. Polling (Phase 8)
+## 13. Polling
 
 ```
 POST /grants/:id/poll
@@ -666,7 +671,7 @@ The diagram shows the legacy call without an instance key. For independent consu
 
 ---
 
-## 14. Sharing (Phase 9)
+## 14. Sharing
 
 Role hierarchy: `viewer (0) < editor (1) < owner (2)`. HTTP credential access uses `GrantAccess#find_visible_grant!(id, min_role:)` and `GrantPolicy`; MCP services enforce the same roles through `MCP::Access`. Direct REST Ruby callers must authorize their selected grant.
 
@@ -678,7 +683,7 @@ Index returns the union. Show/update/destroy escalate the minimum role required.
 
 ---
 
-## 15. External Secrets (Phase 10)
+## 15. External Secrets
 
 ```
 grant.is_managed? + grant.external_ref
@@ -732,68 +737,18 @@ end
 ```
 
 Patterns used throughout `spec/connectors/`:
-- **Anonymous classes** for per-spec test connectors → registry cleanup in `after`
+- **Anonymous classes** for per-spec test connectors → registry isolation in the RSpec setup
 - **`WebMock`** for outbound HTTP
 - **`stub_request(...)` with `.with(headers: ...)`** verifies the auth-injecting middleware did its job
 - **`Connectors::OAuth::State.decode(token)`** to peek inside the encrypted state for round-trip testing
 
 ---
 
-## 18. Reference Index
+## 18. Further Reading
 
-Every n8n source citation used across the engine:
-
-```
-packages/workflow/src/interfaces.ts
-  :197-208   IRequestOptionsSimplifiedAuth (authenticate properties shape)
-  :269-288   IAuthenticateGeneric          (declarative auth shape)
-  :340-348   ICredentialTestRequest        (test_request)
-  :350-354   ICredentialHttpRequestNode    (http_request_node)
-  :356-382   ICredentialType               (envelope: name, displayName, etc.)
-  :374-377   preAuthentication             (hook)
-  :379-381   genericAuth/supportedNodes/httpRequestNode
-  :382       __overwrittenProperties       (managed fields)
-  :1257-1274 getWorkflowStaticData         (static_data parity)
-  :1327-1350 IWebhookFunctions             (WebhookContext)
-  :1561-1584 NodePropertyTypes             (field type enum)
-  :1730-1771 IDisplayOptions + _cnd        (show/hide)
-  :1773-1812 INodeProperties               (field model)
-  :2017      webhookMethods                (declaration site)
-  :2060      polling                       (poll() method)
-  :2091-2095 webhookMethods.default        (checkExists/create/delete)
-  :2600      IWebhookDescription           (named-group routing)
-
-packages/cli/src/credential-types.ts:26-37   extends walker
-
-packages/cli/src/credentials/credentials.controller.ts:67-411   CRUD endpoints
-                                              :100-111   GET /new (unique default name)
-                                              :141-152   POST /test
-
-packages/cli/src/controllers/oauth/oauth1-credential.controller.ts:43-101   OAuth1 callback
-packages/cli/src/controllers/oauth/oauth2-credential.controller.ts:26-37   authorize.json
-
-packages/cli/src/oauth/oauth.service.ts:511-525, 578-586, 765-825   OAuth2 grant types + PKCE
-                                       :601-700                      OAuth1 generate auth uri
-                                       :528, :690                    redirect URI computation
-
-packages/cli/src/services/frontend.service.ts:681-705   __overwrittenProperties population
-                                              :707-711   __skipManagedCreation
-
-packages/cli/src/webhooks/webhook.service.ts:418   IWebhookFunctions consumption
-
-packages/nodes-base/credentials/
-  OAuth2Api.credentials.ts:1-238       canonical OAuth2 (incl. JWE fields :208-237)
-  OAuth1Api.credentials.ts:1-72        canonical OAuth1
-  HttpBasicAuth.credentials.ts         basic
-  HttpBearerAuth.credentials.ts        bearer
-  HttpHeaderAuth.credentials.ts        user-named header
-  HttpQueryAuth.credentials.ts         user-named query
-  HttpDigestAuth.credentials.ts        digest
-  HttpCustomAuth.credentials.ts        custom JSON
-  CrowdStrikeOAuth2Api.credentials.ts:62-76   preAuthentication reference
-  SlackApi.credentials.ts:56-71               test_request reference
-
-packages/nodes-base/nodes/
-  Postmark/PostmarkTrigger.node.ts:114-247    webhookMethods reference
-  Google/Gmail/GmailTrigger.node.ts:65, 281-553   polling reference
-```
+- [Installation and host setup](README.md)
+- [Architecture and execution boundaries](docs/architecture.md)
+- [Adding a connector](docs/adding-connectors.md)
+- [Remote MCP connections](MCP_CLIENT.md)
+- [HTTP API contract](openapi.yaml)
+- [Development and testing](CONTRIBUTING.md)

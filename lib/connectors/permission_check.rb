@@ -1,8 +1,6 @@
 module Connectors
-  # Visibility gate for credentials. Mirrors n8n's two-pronged check
-  # (interfaces.ts:379 + :381) — `genericAuth: true` lets the generic
-  # HTTP-Request node use any credential, and `supportedNodes: [...]`
-  # restricts a credential to a specific node allowlist when set.
+  # Enforce supported_nodes restrictions, including generic_auth permission
+  # for :http_request. An empty allowlist permits every node type.
   #
   # Call from inside a node's execution wrapper before it touches the grant:
   #

@@ -37,7 +37,7 @@ Create the matching GitHub environment `release`, with a deployment tag policy a
 4. Merge the reviewed release changes through a pull request after its required checks pass. Confirm CI on the merged `main` commit also passes.
 5. Confirm the RubyGems account and publisher configuration above are complete before pushing a tag.
 
-The package includes runtime code, migrations, protocol data/licenses and consumer documentation. Tests, the dummy host, development tooling, lockfile, workflows and ignored internal planning documents remain outside the gem. Develop from the source repository, not the installed package.
+The package includes runtime code, migrations, protocol data/licenses and consumer documentation. Tests, the dummy host, development tooling, lockfile and workflows remain outside the gem. Develop from the source repository, not the installed package.
 
 ## Publish the verified commit
 

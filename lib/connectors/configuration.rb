@@ -6,13 +6,13 @@ module Connectors
   #   # config/initializers/connectors.rb
   #   Connectors.configure do |c|
   #     c.owner_class_name       = "User"
-  #     c.current_owner_resolver = ->(controller) { controller.current_user }
+  #     c.current_owner_resolver = ->(controller) { controller.request.env["connectors.current_owner"] }
   #     c.host_base_url          = ENV.fetch("APP_BASE_URL", "http://localhost:3000")
   #     c.oauth_credentials = {
   #       slack:  { client_id: ENV["SLACK_CLIENT_ID"],  client_secret: ENV["SLACK_CLIENT_SECRET"] },
   #       linear: { client_id: ENV["LINEAR_CLIENT_ID"], client_secret: ENV["LINEAR_CLIENT_SECRET"] }
   #     }
-  #     c.on_webhook = ->(event) { Inbox::IngestJob.perform_later(event.id) }
+  #     c.on_webhook = ->(event) { ProcessWebhookJob.perform_later(event.id) }
   #   end
   class Configuration
     attr_accessor :owner_class_name,
@@ -58,39 +58,17 @@ module Connectors
       current_owner_resolver.call(controller)
     end
 
-    # The host wires in a block that, given the controller (or any context
-    # with `current_user`/etc.), returns an array of `[principal_type,
-    # principal_id]` pairs representing every identity the requester has
-    # for sharing-visibility purposes.
+    # Resolve managed secrets through the host callback. Returned values
+    # override stored credentials for the lifetime of the Grant instance.
     #
-    # Default: just the owner — `[["<owner_class_name>", owner.id]]`. EE
-    # hosts override to include teams / projects:
-    #
-    #   c.principal_resolver = ->(ctrl) {
-    #     [
-    #       ["User",    ctrl.current_user.id],
-    #       *ctrl.current_user.team_ids.map { |id| ["Team", id] },
-    #     ]
-    #   }
-    # n8n parity: external secrets EE module
-    # (`external-secrets.controller.ee.ts`). Host wires a block that takes a
-    # Grant (one whose `is_managed?` is true) and returns the hash to merge
-    # into the credentials at request time. Returned values overwrite the
-    # DB-stored values for the lifetime of that Grant instance.
-    #
-    #   c.secrets_resolver = ->(grant) {
-    #     vault_client.read("kv/data/connectors/#{grant.connector_key}/#{grant.external_ref}")
-    #   }
+    #   c.secrets_resolver = ->(grant) { vault_client.read(grant.external_ref) }
     def resolve_secrets(grant)
       return {} if secrets_resolver.nil?
       secrets_resolver.call(grant).to_h.transform_keys(&:to_s)
     end
 
-    # Per-connector list of field names sourced from the vault — surfaces
-    # in `GET /connectors/types/:name` as `__overwritten_properties` so the
-    # editor can hide / lock those fields. n8n parity:
-    # `frontend.service.ts:681-705` — same shape, just emitted server-side
-    # instead of recomputed in the editor.
+    # Vault-sourced field names exposed as __overwritten_properties
+    # so clients can display the fields as managed.
     def managed_fields_for(connector_key)
       return [] if secrets_managed_fields_for.nil?
       Array(secrets_managed_fields_for.call(connector_key)).map(&:to_s)
@@ -103,16 +81,8 @@ module Connectors
       [ [ owner.class.name, owner.id ] ]
     end
 
-    # The URL the OAuth provider redirects back to after consent. Defaults
-    # to the engine's own callback path (n8n-style: provider → backend →
-    # render HTML → close popup). For split frontend/backend setups
-    # (Activepieces-style: provider → frontend → POST exchange → backend),
-    # set this to the FRONTEND's callback page, e.g.
-    # `"http://localhost:3001/oauth/callback"`.
-    #
-    # Either way it must MATCH a value registered in the provider's app
-    # console; if it doesn't, Google/Slack/etc. respond with
-    # `redirect_uri_mismatch` before consent even renders.
+    # Use the configured frontend callback URL or the mounted engine callback.
+    # Register the resulting URL with the OAuth provider.
     def resolved_app_callback_url(connector_key)
       return app_callback_url if app_callback_url.present?
       base = host_base_url or

@@ -1,10 +1,9 @@
 module Gmail
   # Polling trigger logic. Invoked once per scheduler tick by
-  # `Connectors::PollRunner.run(grant)`, which threads in the per-grant
-  # scratch hash stored at `grant.static_data["polling"]`.
+  # `Connectors::PollRunner.run`, which supplies isolated state when an
+  # instance_key is provided, or per-grant polling state otherwise.
   #
-  # n8n parity: `packages/nodes-base/nodes/Google/Gmail/GmailTrigger.node.ts`.
-  # Key invariants we copy 1:1:
+  # Cursor and filtering behavior:
   #
   #   * Cursor = `last_checked_at` (unix seconds). First-ever poll bootstraps
   #     the cursor to `now` and emits nothing.
@@ -19,9 +18,7 @@ module Gmail
   #     SENT and INBOX when the user is the recipient; we want the inbound
   #     copy, not the outbound).
   #
-  # Filters are passed via `grant.static_data["polling"]["filters"]` so the
-  # workflow author can configure them per-trigger when the automations
-  # engine hooks this up:
+  # Filters are read from the supplied polling state under "filters":
   #
   #   {
   #     "q"               => "from:boss has:attachment",  # raw Gmail search
@@ -94,9 +91,7 @@ module Gmail
 
     private
 
-    # Gmail search syntax. n8n's prepareQuery is the reference; the order
-    # of clauses doesn't matter to Gmail, but keep the same join scheme so
-    # diffs against n8n are easy to read.
+    # Combine the cursor boundary and configured Gmail search filters.
     def build_query
       qs = {}
       qs["labelIds[]"]      = Array(@filters["label_ids"]) if @filters["label_ids"]
@@ -110,12 +105,10 @@ module Gmail
       status = @filters["read_status"].to_s
       q_parts << "is:#{status}" if status == "unread" || status == "read"
 
-      # Boundary-inclusive `after:` — same behavior n8n leans on; we
-      # de-dupe via possible_duplicates rather than narrowing the window.
+      # Include the cursor boundary and suppress previously emitted IDs.
       q_parts << "after:#{@sd['last_checked_at']}"
 
-      # `-in:scheduled` matches n8n's v1.4+ guard (scheduled-send drafts
-      # appear in users.messages.list but aren't real inbound mail yet).
+      # Exclude scheduled messages from inbound polling.
       q_parts << "-in:scheduled"
 
       qs[:q] = q_parts.join(" ")

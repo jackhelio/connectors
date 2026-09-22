@@ -1,12 +1,7 @@
 module Connectors
-  # DSL surface for the `action` block on a Connector subclass. Collects
-  # `field`, optional `output`, and `execute` declarations into an Action
-  # value object.
-  #
-  # Reuses `CredentialSchema::Field` as the property struct because n8n's
-  # node-property shape and credential-property shape are identical (both
-  # `INodeProperties` at packages/workflow/src/interfaces.ts:1773-1812) —
-  # only the allowed `type` set differs (see `Action::ALLOWED_TYPES`).
+  # Builds an Action from field, optional output, and execute declarations.
+  # Action and credential fields share CredentialSchema::Field serialization;
+  # Action::ALLOWED_TYPES defines the action-specific type set.
   class ActionBuilder
     Field = CredentialSchema::Field
 
@@ -61,10 +56,8 @@ module Connectors
       )
     end
 
-    # Declare the shape of the value the action returns. Optional but
-    # encouraged — agents and downstream nodes use it to know what fields
-    # they can reference (Activepieces calls this `returns:`). The same
-    # `field` DSL is used inside the block.
+    # Optional result schema for clients to discover available output fields.
+    # Uses the same field DSL as action inputs.
     def output(&block)
       raise ArgumentError, "output requires a block" if block.nil?
       collector = OutputCollector.new

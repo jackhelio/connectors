@@ -1,10 +1,6 @@
 module Connectors
-  # Helpers passed to a connector's `pre_authentication` block — mirrors
-  # n8n's `IHttpRequestHelper.helpers` surface (n8n source:
-  # packages/workflow/src/interfaces.ts:210-212). The block uses this to
-  # fetch a fresh token from an arbitrary endpoint without needing the
-  # full connector client (which itself depends on credentials that may
-  # not exist yet on first auth).
+  # HTTP helper for pre_authentication. Fetches credentials independently
+  # of the connector client, whose authentication may not yet be available.
   #
   #   pre_authentication do |credentials, helpers|
   #     response = helpers.http_request(
@@ -44,9 +40,8 @@ module Connectors
         req.body   = body  if body
       end
 
-      # Match n8n's `helpers.httpRequest` default: non-2xx becomes an error
-      # the pre_authentication hook can catch. Keeps "auth endpoint
-      # exploded" failures visible instead of silently merging a nil token.
+      # Raise on non-2xx responses so the hook cannot silently merge
+      # an unsuccessful token response into credentials.
       if response.status >= 400
         body_preview = response.body.is_a?(String) ? response.body.byteslice(0, 200) : response.body.inspect
         raise Connectors::ApiError.new(

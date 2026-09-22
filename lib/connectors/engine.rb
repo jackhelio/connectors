@@ -32,11 +32,9 @@ module Connectors
     initializer :connectors_register_credential_types do
       reg = ::Connectors::CredentialTypeRegistry
       reg.register(:oauth2,           reg::OAUTH2)
-      # Phase 4 — n8n's `OAuth1Api` base type
-      # (packages/nodes-base/credentials/OAuth1Api.credentials.ts:1-72).
+      # Register the OAuth1 base credential schema.
       reg.register(:oauth1_api,       reg::OAUTH1)
-      # Phase 2 — n8n's generic HTTP auth credential types
-      # (packages/nodes-base/credentials/Http*Auth.credentials.ts).
+      # Register reusable HTTP authentication schemas.
       reg.register(:http_basic_auth,  ::Connectors::CredentialTypes::HTTP_BASIC_AUTH)
       reg.register(:http_bearer_auth, ::Connectors::CredentialTypes::HTTP_BEARER_AUTH)
       reg.register(:http_header_auth, ::Connectors::CredentialTypes::HTTP_HEADER_AUTH)
@@ -54,8 +52,7 @@ module Connectors
     #
     # Walks every Engine root (including the host's main app) and globs each
     # one's `app/connectors/` — the union covers shipped connectors here in
-    # the engine, plus host-app overrides under flow-api's own
-    # `app/connectors/` (if/when the host decides to ship its own).
+    # the engine and connectors defined in the host's app/connectors directory.
     config.to_prepare do
       ::Rails::Engine.subclasses.map(&:instance).push(::Rails.application).uniq.each do |engine|
         dir = engine.root.join("app/connectors")

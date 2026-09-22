@@ -180,10 +180,7 @@ RSpec.describe Gmail::Connector, "actions" do
     end
   end
 
-  # ============================================================================
-  # NEW (n8n-parity sprint) — reply / trash / mark-as-{read,unread} / threads /
-  # drafts / get_label / delete_label / auto-paginate.
-  # ============================================================================
+  # Reply, trash, read state, thread, draft, label and pagination actions.
 
   describe "#reply_to_message" do
     let(:parent_payload) do

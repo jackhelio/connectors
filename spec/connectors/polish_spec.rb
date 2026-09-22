@@ -1,11 +1,8 @@
 require "rails_helper"
 
-# Phase 11 — polish. Small, defer-friendly items: server-generated default
-# names, `__skipManagedCreation` enforcement, OAuth2 advanced JWE/JWKS
-# fields, and typeOption round-trip for `expirable` / `redactJsonLeaves` /
-# `resolvableField`. Webhook setup verification rides on the multi-group
-# routing that landed in Phases 6 + 7.
-RSpec.describe "Phase 11 — polish" do
+# Default credential names, managed-creation policy, OAuth form metadata
+# and field-option serialization.
+RSpec.describe "Credential metadata and defaults" do
   let(:owner) { Owner.create!(name: "p11 owner") }
 
   let!(:resend_clone) do
@@ -109,7 +106,7 @@ RSpec.describe "Phase 11 — polish" do
       expect(names).to include("jwe_enabled", "jwks_uri")
     end
 
-    it "jwks_uri is conditionally shown when jwe_enabled is true (n8n parity)" do
+    it "jwks_uri is conditionally shown when jwe_enabled is true" do
       jwks = oauth2_schema.resolved_fields.find { |f| f.name == :jwks_uri }
       expect(jwks.display_options).to eq(show: { jwe_enabled: [ true ] })
     end
@@ -184,10 +181,8 @@ RSpec.describe "Phase 11 — polish" do
     end
   end
 
-  describe "Webhook setup verification (n8n's `webhookMethods.setup`)" do
-    # Already exercised by Phase 6 (named group DSL) + Phase 7 (named route +
-    # `ctx.webhook_name`). This spec locks in the *Slack URL-verification*
-    # use-case end-to-end so the polish phase explicitly closes that loop.
+  describe "Webhook setup verification" do
+    # Exercise Slack URL verification through the named setup webhook route.
     let!(:slack_clone) do
       Class.new(Connectors::Connector) do
         connector key: :p11_slack, auth: :api_key, base_url: "https://api.s.test"

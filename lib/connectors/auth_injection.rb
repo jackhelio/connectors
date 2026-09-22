@@ -1,16 +1,9 @@
 module Connectors
-  # Resolves n8n-style `={{$credentials.x}}` templates inside an
-  # `IAuthenticateGeneric` properties block (n8n source:
-  # packages/workflow/src/interfaces.ts:269-288, 197-208).
+  # Resolves credential templates in declarative authentication properties.
+  # Only `$credentials.field` and bracket lookups are supported.
   #
-  # Scope on purpose: this is NOT a general-purpose expression engine. It
-  # only understands `$credentials.<field>` lookups (with optional bracket
-  # access). Anything richer belongs in the automations expression engine,
-  # which the connectors engine must remain independent of.
-  #
-  # A string that starts with `=` is a template — its `{{ ... }}` segments
-  # are evaluated. Strings without a leading `=` are passed through as
-  # literals (matches n8n's `={{expression}}` convention).
+  # Strings beginning with `=` interpolate their `{{ ... }}` segments.
+  # Other strings remain literal; general expressions are unsupported.
   module AuthInjection
     module_function
 
@@ -24,10 +17,8 @@ module Connectors
     def walk(value, credentials)
       case value
       when Hash
-        # Both keys AND values can be templates. n8n's HttpHeaderAuth uses
-        # `{ '={{$credentials.name}}': '={{$credentials.value}}' }` — the
-        # header *name* is user-supplied (see
-        # packages/nodes-base/credentials/HttpHeaderAuth.credentials.ts:38-45).
+        # Resolve both keys and values so header and query names can come
+        # from credential fields.
         value.each_with_object({}) do |(k, v), out|
           resolved_key = k.is_a?(String) ? resolve_string(k, credentials) : k
           out[resolved_key] = walk(v, credentials)
@@ -45,9 +36,7 @@ module Connectors
       str[1..].gsub(EXPR) { lookup(Regexp.last_match(1), credentials) }
     end
 
-    # Supports `$credentials.field`, `$credentials["field"]`, `$credentials['field']`.
-    # Missing keys resolve to "" (n8n behavior — keeps templates from raising
-    # mid-request when the field is optional).
+    # Supports dot and quoted bracket lookups. Missing fields resolve to "".
     def lookup(expr, credentials)
       expr = expr.to_s.strip
       if (m = expr.match(/\A\$credentials\.([A-Za-z_][A-Za-z0-9_]*)\z/))
