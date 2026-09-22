@@ -9,12 +9,14 @@ A mountable Rails engine for connecting accounts to provider APIs and remote MCP
 | Component | Requirement | Validation baseline |
 | --- | --- | --- |
 | Ruby | 3.2 or later | Ruby 3.4.8 locally and in the CI configuration |
-| Rails | 8.1.3 or later in the 8.1 series | Rails 8.1.3 |
+| Rails | 8.1.3 or later in the 8.1 series | Rails 8.1.3.1 |
 | Database | PostgreSQL 13+; migrations use UUIDs, JSONB and partial indexes | CI targets PostgreSQL 16 |
 | Identity | Persisted owner model with UUID primary keys; sharing principals also use UUIDs | Dummy `Owner` model in tests |
 | Encryption | Host-configured Active Record Encryption keys and stable Rails `secret_key_base` | Synthetic keys in tests |
 
 The declared Ruby minimum matches Rails' requirement; it is not a claim that every Ruby/OS combination has been tested. SQLite, MySQL and integer owner IDs are not supported by the shipped migrations. Install the host's PostgreSQL adapter (`pg`) in its Gemfile.
+
+JSON is constrained to 2.x because Rails 8.1's decoder is incompatible with JSON 3's argument signature.
 
 ## Installation
 

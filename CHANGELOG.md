@@ -4,6 +4,11 @@ Changes are recorded here before release. Published packages are listed on [Ruby
 
 ## Unreleased
 
+### Fixed
+
+- Constrain JSON to 2.x for Rails 8.1 decoder compatibility; JSON 3 raises when loading encrypted credentials.
+- Update the development lockfile to Rails 8.1.3.1, Faraday 2.14.4 and OAuth2 2.0.25, and update CI actions.
+
 ### Documentation
 
 - Describe connector contracts directly across guides, API metadata, source comments and test names.

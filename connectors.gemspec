@@ -28,6 +28,8 @@ Gem::Specification.new do |spec|
   spec.rdoc_options = [ "--main", "README.md" ]
 
   spec.add_dependency "rails", "~> 8.1.3"
+  # Rails 8.1 passes a positional options hash to JSON.parse; JSON 3 requires keywords.
+  spec.add_dependency "json", ">= 2.3", "< 3"
   spec.add_dependency "faraday", "~> 2.9"
   spec.add_dependency "faraday-retry", "~> 2.2"
   spec.add_dependency "oauth2", "~> 2.0"
