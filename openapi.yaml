@@ -1,0 +1,1099 @@
+openapi: 3.1.0
+info:
+  title: Connectors Engine API
+  version: "0.1.0"
+  description: |
+    Rails engine for encrypted credentials, provider authorization, actions, webhooks, polling and remote MCP tools.
+    Every endpoint is namespaced under the engine's mount path (default `/connectors`).
+
+    **Auth model.** The engine itself doesn't authenticate requests — the host wires
+    `Connectors.configuration.current_owner_resolver` to extract the requester from the
+    controller (session, JWT, API key — host's choice). Endpoints that mutate
+    credentials require an `Owner` to be resolvable; those that read enforce
+    role-based visibility via `principal_resolver`.
+
+    **Source of truth.** This document is hand-maintained alongside the engine.
+    Cross-check against `config/routes.rb` and the controller files —
+    they are the implementation.
+
+    **Mount path.** The host chooses the engine mount, such as `/connectors`
+    or `/api/v1/connectors`. The engine introspects its actual
+    mount via `Connectors::Engine.mount_path`, so OAuth callback URLs and
+    webhook subscribe URLs in responses always reflect reality.
+  contact:
+    name: Connectors framework
+  license:
+    name: MIT
+servers:
+  - url: "{host}{mount}"
+    description: Engine mount in the host app
+    variables:
+      host:
+        default: "http://localhost:3000"
+        description: Scheme + host of the host application
+      mount:
+        default: "/connectors"
+        description: Path where the host mounts Connectors::Engine
+
+tags:
+  - name: MCP
+    description: External MCP 2026-07-28 tools and authorization
+  - name: Catalog
+    description: List of registered connector types
+  - name: Credentials
+    description: CRUD + sharing + revocation
+  - name: Grants
+    description: "@deprecated alias surface + manual harnesses (test, subscribe, poll)"
+  - name: OAuth
+    description: OAuth1 + OAuth2 (all grant types) authorize / callback / revoke
+  - name: Webhooks
+    description: Inbound webhook delivery
+  - name: External Secrets
+    description: Managed credentials with vault-resolved values
+
+paths:
+  /credentials/{id}/mcp/tools:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [MCP]
+      operationId: listMcpTools
+      summary: Discover native MCP tool descriptors for a visible connection
+      responses:
+        "200":
+          description: Complete paginated tool catalog, with original schemas and metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tools]
+                properties:
+                  tools: { type: array, items: { type: object, additionalProperties: true } }
+        "401": { $ref: "#/components/responses/McpFailure" }
+        "403": { $ref: "#/components/responses/McpFailure" }
+        "429": { $ref: "#/components/responses/McpRateLimited" }
+        "502": { $ref: "#/components/responses/McpFailure" }
+
+  /credentials/{id}/mcp/tools/call:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [MCP]
+      operationId: callMcpTool
+      summary: Invoke an MCP tool with editor access
+      description: No automatic replay after a timeout or disconnected response. Tool execution errors remain MCP results with isError=true.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, arguments]
+              properties:
+                name: { type: string }
+                arguments: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: Native tool result, or input_required with a durable interaction_id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/McpToolResult" }
+        "401": { $ref: "#/components/responses/McpFailure" }
+        "403": { $ref: "#/components/responses/McpFailure" }
+        "422": { $ref: "#/components/responses/McpFailure" }
+        "429": { $ref: "#/components/responses/McpRateLimited" }
+        "502": { $ref: "#/components/responses/McpFailure" }
+
+  /credentials/{id}/mcp/interactions/resume:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [MCP]
+      operationId: resumeMcpInteraction
+      summary: Resume a pending interaction once as the initiating actor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [interaction_id, responses]
+              properties:
+                interaction_id: { type: string, format: uuid }
+                responses:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    required: [action]
+                    properties:
+                      action: { type: string, enum: [accept, decline, cancel] }
+                      content: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: Native completed result or next interaction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/McpToolResult" }
+        "401": { $ref: "#/components/responses/McpFailure" }
+        "403": { $ref: "#/components/responses/McpFailure" }
+        "422": { $ref: "#/components/responses/McpFailure" }
+        "429": { $ref: "#/components/responses/McpRateLimited" }
+        "502": { $ref: "#/components/responses/McpFailure" }
+
+  /credentials/{id}/mcp/authorize:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [MCP]
+      operationId: authorizeMcpConnection
+      summary: Start owner-only OAuth consent or scope upgrade
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                authorization_context: { type: string, description: Encrypted context returned by a failed MCP operation }
+      responses:
+        "200":
+          description: Browser authorization URL with durable PKCE state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [authorization_url]
+                properties:
+                  authorization_url: { type: string, format: uri }
+        "403": { $ref: "#/components/responses/McpFailure" }
+        "422": { $ref: "#/components/responses/McpFailure" }
+        "429": { $ref: "#/components/responses/McpRateLimited" }
+        "502": { $ref: "#/components/responses/McpFailure" }
+
+  /mcp/oauth/callback:
+    get:
+      tags: [MCP]
+      operationId: completeMcpAuthorizationRedirect
+      summary: Complete OAuth as the authenticated initiating owner
+      parameters:
+        - { name: state, in: query, required: true, schema: { type: string } }
+        - { name: code, in: query, schema: { type: string } }
+        - { name: iss, in: query, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+      responses:
+        "200": { description: Authorization completed }
+        "403": { $ref: "#/components/responses/McpFailure" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/McpRateLimited" }
+        "502": { $ref: "#/components/responses/McpFailure" }
+    post:
+      tags: [MCP]
+      operationId: completeMcpAuthorizationExchange
+      summary: Complete OAuth from a frontend callback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: { type: string }
+                code: { type: string }
+                iss: { type: string }
+                error: { type: string }
+      responses:
+        "200": { description: Authorization completed }
+        "403": { $ref: "#/components/responses/McpFailure" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/McpRateLimited" }
+        "502": { $ref: "#/components/responses/McpFailure" }
+
+  # =========================================================================
+  # CATALOG
+  # =========================================================================
+  /types:
+    get:
+      tags: [Catalog]
+      summary: List every registered connector type
+      operationId: listTypes
+      responses:
+        "200":
+          description: Catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  types:
+                    type: array
+                    items: { $ref: "#/components/schemas/CredentialType" }
+
+  /types/{name}:
+    get:
+      tags: [Catalog]
+      summary: Full description of one connector type
+      operationId: getType
+      parameters:
+        - { name: name, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Single type
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CredentialType" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # =========================================================================
+  # CREDENTIALS CRUD
+  # =========================================================================
+  /credentials:
+    get:
+      tags: [Credentials]
+      summary: List credentials visible to the requester (owned + shared)
+      operationId: listCredentials
+      parameters:
+        - { name: type,         in: query, schema: { type: string } }
+        - { name: include_data, in: query, description: "Owner-only decrypted data; MCP returns public configuration for all visible connections", schema: { type: boolean, default: false } }
+      responses:
+        "200":
+          description: Visible credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  credentials:
+                    type: array
+                    items: { $ref: "#/components/schemas/Credential" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Credentials]
+      summary: Create a credential (paste-the-key flow)
+      operationId: createCredential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type:         { type: string, description: "connector key" }
+                name:         { type: string }
+                data:         { type: object, additionalProperties: true, description: "credential values" }
+                external_ref: { type: string, description: "vault reference" }
+                is_managed:   { type: boolean, default: false }
+      responses:
+        "201":
+          description: Created
+          content: { application/json: { schema: { $ref: "#/components/schemas/Credential" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /credentials/for-workflow:
+    get:
+      tags: [Credentials]
+      summary: List credentials available to a workflow editor
+      operationId: listCredentialsForWorkflow
+      parameters:
+        - { name: type, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Visible credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  credentials:
+                    type: array
+                    items: { $ref: "#/components/schemas/Credential" }
+
+  /credentials/new:
+    get:
+      tags: [Credentials]
+      summary: Server-generated unique default name ("Resend account 3")
+      operationId: newCredentialName
+      parameters:
+        - { name: type, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Suggested name
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { name: { type: string } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /credentials/test:
+    post:
+      tags: [Credentials]
+      summary: Test an unsaved credential
+      operationId: testUnsavedCredential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type: { type: string }
+                data: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: Test passed
+          content: { application/json: { schema: { $ref: "#/components/schemas/TestResult" } } }
+        "422":
+          description: Test failed (provider rejected)
+          content: { application/json: { schema: { $ref: "#/components/schemas/TestResult" } } }
+
+  /credentials/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Credentials]
+      summary: Show one credential (viewer-or-better)
+      operationId: getCredential
+      parameters:
+        - { name: include_data, in: query, description: "Owner-only decrypted data; MCP returns public configuration for all visible connections", schema: { type: boolean, default: false } }
+      responses:
+        "200":
+          description: Credential
+          content: { application/json: { schema: { $ref: "#/components/schemas/Credential" } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Credentials]
+      summary: Update a credential (editor-or-owner)
+      operationId: updateCredential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                data: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: Updated
+          content: { application/json: { schema: { $ref: "#/components/schemas/Credential" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      tags: [Credentials]
+      summary: Alias for PATCH (back-compat)
+      operationId: replaceCredential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                data: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: Updated
+          content: { application/json: { schema: { $ref: "#/components/schemas/Credential" } } }
+    delete:
+      tags: [Credentials]
+      summary: Delete a credential (owner only)
+      operationId: deleteCredential
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # =========================================================================
+  # ACTIONS — what a credential can DO
+  # =========================================================================
+  /credentials/{id}/actions:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Actions]
+      summary: List actions available on this credential's connector
+      operationId: listCredentialActions
+      responses:
+        "200":
+          description: Actions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Action" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /credentials/{id}/actions/{name}:
+    parameters:
+      - { name: id,   in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: name, in: path, required: true, schema: { type: string  } }
+    post:
+      tags: [Actions]
+      summary: Invoke a connector action with this credential
+      description: |
+        Validates `data` against the action's param schema, then runs the
+        action's execute block in the connector instance's context. Returns
+        a normalized envelope — `status: "ok"` with `data`, or `status: "error"`
+        with a typed `error` object (`invalid_params`, `authentication_failed`,
+        `forbidden`, `rate_limited`, `api_error`).
+      operationId: invokeCredentialAction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data: { type: object, additionalProperties: true, description: "action input params" }
+      responses:
+        "200":
+          description: Action succeeded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: Provider permission denied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionResult" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422":
+          description: Invalid params
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionResult" }
+        "429":
+          description: Provider rate-limited the request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionResult" }
+        "502":
+          description: Provider returned an error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionResult" }
+
+  /credentials/{id}/revoke:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Credentials, OAuth]
+      summary: RFC 7009 token revocation
+      operationId: revokeCredential
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  grant_id: { type: string, format: uuid }
+                  status:   { type: string, example: "revoked" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /credentials/{id}/share:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [Credentials]
+      summary: Share a credential with a principal (owner only, idempotent)
+      operationId: shareCredential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SharePayload" }
+      responses:
+        "200":
+          description: Share record
+          content: { application/json: { schema: { $ref: "#/components/schemas/CredentialShare" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      tags: [Credentials]
+      summary: Revoke a share
+      operationId: unshareCredential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [principal_type, principal_id]
+              properties:
+                principal_type: { type: string }
+                principal_id:   { type: string, format: uuid }
+      responses:
+        "204": { description: Unshared }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /credentials/{id}/transfer:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [Credentials]
+      summary: Transfer ownership to a different owner (owner only)
+      operationId: transferCredential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [owner_id]
+              properties: { owner_id: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Reassigned
+          content: { application/json: { schema: { $ref: "#/components/schemas/Credential" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # =========================================================================
+  # GRANTS — manual harnesses
+  # =========================================================================
+  /grants:
+    get:
+      tags: [Grants]
+      summary: "@deprecated alias for /credentials index"
+      operationId: listGrants
+      parameters:
+        - { name: connector_key, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Grants
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  grants:
+                    type: array
+                    items: { $ref: "#/components/schemas/Credential" }
+
+  /grants/{id}/test:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Grants]
+      summary: Run the connector's declared test_request against the live provider
+      operationId: testGrant
+      responses:
+        "200":
+          description: Test passed
+          content: { application/json: { schema: { $ref: "#/components/schemas/TestResult" } } }
+        "422":
+          description: Test failed
+          content: { application/json: { schema: { $ref: "#/components/schemas/TestResult" } } }
+
+  /grants/{id}/webhook_subscribe:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Grants, Webhooks]
+      summary: Run the connector's webhook_methods subscribe lifecycle
+      operationId: subscribeWebhook
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                webhook_name: { type: string, default: "default" }
+                hook_url:     { type: string, format: uri }
+      responses:
+        "200":
+          description: Subscribed or already-exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:       { type: string, enum: [created, exists] }
+                  webhook_name: { type: string }
+                  hook_url:     { type: string }
+                  static_data:  { type: object, additionalProperties: true }
+    delete:
+      tags: [Grants, Webhooks]
+      summary: Unsubscribe — run the delete callback
+      operationId: unsubscribeWebhook
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { webhook_name: { type: string, default: "default" } }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:       { type: string, example: "deleted" }
+                  webhook_name: { type: string }
+                  static_data:  { type: object, additionalProperties: true }
+
+  /grants/{id}/poll:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Grants]
+      summary: Fire the polling block once
+      operationId: pollGrant
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                instance_key:
+                  type: string
+                  minLength: 1
+                  description: Stable consumer identifier; isolates cursor and filter state. Omit for the legacy per-grant cursor.
+      responses:
+        "400":
+          description: Invalid instance key
+        "404": { $ref: "#/components/responses/NotFound" }
+        "200":
+          description: Items + new cursor
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:       { type: array, items: { type: object, additionalProperties: true } }
+                  static_data: { type: object, additionalProperties: true }
+
+  # =========================================================================
+  # OAUTH
+  # =========================================================================
+  /{connector_key}/authorize:
+    parameters:
+      - { name: connector_key, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [OAuth]
+      summary: Start OAuth authorize flow
+      operationId: oauthAuthorize
+      description: |
+        Creates a new connection unless grant_id selects an owned connection to reconnect.
+        Reconnection must retain the provider and known account identity.
+        Dispatches by connector configuration:
+        - `oauth2 grant_type: "authorizationCode"|"pkce"` → 302 to provider authorize URL
+        - `oauth2 grant_type: "clientCredentials"`        → exchange in-place, returns grant JSON
+        - `oauth1`                                          → request-token leg, then 302
+      parameters:
+        - { name: grant_id, in: query, schema: { type: string, format: uuid }, description: "Reconnect this owned connection instead of creating a new one." }
+        - { name: return_to, in: query, schema: { type: string }, description: "URL to redirect to after callback completes" }
+        - { name: scope, in: query, schema: { type: string }, description: "Override the connector's declared default scope. The connector SUGGESTS scopes; the host decides." }
+      responses:
+        "302":
+          description: Redirect to provider (or to return_to after callback)
+          headers:
+            Location: { schema: { type: string } }
+        "200":
+          description: clientCredentials grant created in-place
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  grant_id:      { type: string, format: uuid }
+                  connector_key: { type: string }
+                  status:        { type: string, example: "active" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /{connector_key}/authorize.json:
+    parameters:
+      - { name: connector_key, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [OAuth]
+      summary: Return the authorize URL as JSON for popup-based flows
+      operationId: oauthAuthorizeJson
+      description: Creates a new connection unless grant_id explicitly selects an owned connection to reconnect.
+      parameters:
+        - { name: grant_id, in: query, schema: { type: string, format: uuid }, description: "Reconnect this owned connection instead of creating a new one." }
+        - { name: return_to, in: query, schema: { type: string } }
+        - { name: scope, in: query, schema: { type: string }, description: "Override the connector's declared default scope (see /authorize for details)." }
+      responses:
+        "200":
+          description: Authorize URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authorize_url: { type: string, format: uri }
+                  connector_key: { type: string }
+
+  /{connector_key}/callback:
+    parameters:
+      - { name: connector_key, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [OAuth]
+      summary: OAuth callback (OAuth2 + OAuth1)
+      operationId: oauthCallback
+      description: |
+        Accepts EITHER OAuth2 callback (`?code=&state=`) OR OAuth1 callback
+        (`?oauth_token=&oauth_verifier=&state=`). Validates encrypted state, exchanges
+        for tokens, creates a Grant or reconnects the explicitly selected Grant, and either redirects to `state.return_to` or returns the grant JSON.
+      parameters:
+        - { name: code,           in: query, schema: { type: string } }
+        - { name: state,          in: query, required: true, schema: { type: string } }
+        - { name: oauth_token,    in: query, schema: { type: string } }
+        - { name: oauth_verifier, in: query, schema: { type: string } }
+      responses:
+        "302":
+          description: Redirect to state.return_to
+          headers: { Location: { schema: { type: string } } }
+        "200":
+          description: Grant JSON
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  grant_id:      { type: string, format: uuid }
+                  connector_key: { type: string }
+                  status:        { type: string }
+        "401":
+          description: Invalid state or token exchange failed
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: Owner not found
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  # =========================================================================
+  # WEBHOOKS (inbound)
+  # =========================================================================
+  /{connector_key}/webhook:
+    parameters:
+      - { name: connector_key, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [Webhooks]
+      summary: App-level webhook (single URL per app; grant resolved from payload)
+      operationId: receiveAppWebhook
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { type: object, additionalProperties: true } }
+          application/x-www-form-urlencoded: { schema: { type: object, additionalProperties: true } }
+      responses:
+        "202": { $ref: "#/components/responses/WebhookAccepted" }
+        "200":
+          description: URL-verification challenge response
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /{connector_key}/webhook/{webhook_name}:
+    parameters:
+      - { name: connector_key, in: path, required: true, schema: { type: string } }
+      - { name: webhook_name,  in: path, required: true, schema: { type: string } }
+    post:
+      tags: [Webhooks]
+      summary: App-level named-group webhook
+      operationId: receiveAppWebhookNamed
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { type: object, additionalProperties: true } }
+      responses:
+        "202": { $ref: "#/components/responses/WebhookAccepted" }
+        "200":
+          description: URL-verification challenge response
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+
+  /{connector_key}/{grant_id}/webhook:
+    parameters:
+      - { name: connector_key, in: path, required: true, schema: { type: string } }
+      - { name: grant_id,      in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Webhooks]
+      summary: Per-grant webhook (grant id in URL)
+      operationId: receiveGrantWebhook
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { type: object, additionalProperties: true } }
+      responses:
+        "202": { $ref: "#/components/responses/WebhookAccepted" }
+
+  /{connector_key}/{grant_id}/webhook/{webhook_name}:
+    parameters:
+      - { name: connector_key, in: path, required: true, schema: { type: string } }
+      - { name: grant_id,      in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: webhook_name,  in: path, required: true, schema: { type: string } }
+    post:
+      tags: [Webhooks]
+      summary: Per-grant named-group webhook
+      operationId: receiveGrantWebhookNamed
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { type: object, additionalProperties: true } }
+      responses:
+        "202": { $ref: "#/components/responses/WebhookAccepted" }
+
+components:
+  schemas:
+    McpToolResult:
+      type: object
+      additionalProperties: true
+      properties:
+        resultType: { type: string, enum: [complete, input_required] }
+        content: { type: array, items: { type: object, additionalProperties: true } }
+        structuredContent: {}
+        isError: { type: boolean }
+        interaction_id: { type: string, format: uuid }
+        inputRequests: { type: object, additionalProperties: true }
+    McpError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [type, message]
+          properties:
+            type: { type: string }
+            message: { type: string }
+            retry_after: { type: string, description: "rate_limited only; valid upstream delay-seconds or HTTP date, omitted if unavailable" }
+        authorization_context:
+          type: string
+          description: Encrypted owner consent context; pass to the authorize endpoint for scope upgrades.
+    CredentialType:
+      type: object
+      properties:
+        name:               { type: string, description: "machine key" }
+        display_name:       { type: string }
+        key:                { type: string, deprecated: true, description: "@deprecated — use name" }
+        label:              { type: string, deprecated: true, description: "@deprecated — use display_name" }
+        icon:               { type: string, nullable: true }
+        icon_color:         { type: string, nullable: true }
+        documentation_url:  { type: string, nullable: true }
+        llm_docs:           { type: string, nullable: true, description: "provider's llms.txt / llms-full.txt URL (llmstxt.org)" }
+        instructions:       { type: string, nullable: true, description: "markdown rendered at the top of the Add Connection dialog (e.g. how to generate an API key); nil when no setup guidance is needed" }
+        extends:            { type: array, items: { type: string }, description: "base credential types inherited from" }
+        properties:
+          type: array
+          description: "Credential form field descriptors"
+          items: { $ref: "#/components/schemas/Field" }
+        authenticate:
+          type: object
+          nullable: true
+          description: "Declarative credential injection properties"
+          properties:
+            type:       { type: string, enum: [generic] }
+            properties: { type: object, additionalProperties: true }
+        generic_auth:        { type: boolean }
+        supported_nodes:     { type: array, items: { type: string } }
+        http_request_node:
+          type: object
+          nullable: true
+          properties:
+            name:                  { type: string }
+            docsUrl:               { type: string }
+            apiBaseUrl:            { type: string }
+            apiBaseUrlPlaceholder: { type: string }
+            hidden:                { type: boolean }
+        __overwritten_properties: { type: array, items: { type: string }, description: "fields sourced from external secrets manager" }
+        __skip_managed_creation:  { type: boolean }
+        actions:
+          type: array
+          description: "declarative manifest of what this connector can DO with a credential — design-time discovery for the picker/builder UI"
+          items: { $ref: "#/components/schemas/Action" }
+        connector:
+          type: object
+          properties:
+            base_url:           { type: string }
+            webhook_style:      { type: string, enum: [app_level, per_grant] }
+            rate_limit:         { type: object, nullable: true }
+            authorize_url:      { type: string, nullable: true }
+            authorize_json_url: { type: string, nullable: true }
+            redirect_uri:       { type: string, nullable: true }
+            test_supported:     { type: boolean }
+            mcp:
+              type: object
+              nullable: true
+              description: "Present for remote MCP connectors, including clickup. URL templates use :id for the credential ID; provider endpoint/authentication values are fixed when present."
+              properties:
+                server_url:       { type: string, format: uri }
+                auth_mode:        { type: string, enum: [none, bearer, headers, oauth] }
+                protocol_version: { type: string }
+                tools_url:        { type: string }
+                call_url:         { type: string }
+                resume_url:       { type: string }
+                authorize_url:    { type: string }
+
+    ActionResult:
+      type: object
+      description: "envelope returned by every action invocation — same shape on success and failure"
+      properties:
+        status: { type: string, enum: [ok, error] }
+        action: { type: string, description: "action key" }
+        data:   { type: object, additionalProperties: true, description: "present when status=ok" }
+        error:
+          type: object
+          description: "present when status=error"
+          properties:
+            type:
+              type: string
+              enum: [invalid_params, authentication_failed, forbidden, rate_limited, api_error]
+            message:    { type: string }
+            status:     { type: integer, nullable: true, description: "provider HTTP status" }
+            missing:    { type: array, items: { type: string }, description: "invalid_params: required keys not supplied" }
+            unknown:    { type: array, items: { type: string }, description: "invalid_params: keys not on the schema" }
+            retry_after: { type: integer, nullable: true, description: "rate_limited: seconds until next retry" }
+            body: { type: object, additionalProperties: true, nullable: true, description: "api_error: raw provider response" }
+
+    Action:
+      type: object
+      description: "A provider operation exposed by a connector"
+      properties:
+        name:         { type: string, description: "machine key, e.g. send_email" }
+        display_name: { type: string }
+        description:  { type: string }
+        deprecated:   { type: boolean }
+        tags:         { type: array, items: { type: string } }
+        properties:
+          type: array
+          description: "input schema — same shape as credential properties"
+          items: { $ref: "#/components/schemas/Field" }
+        output:
+          type: array
+          description: "Schema of the action result"
+          items: { $ref: "#/components/schemas/Field" }
+
+    Field:
+      type: object
+      description: "Input field descriptor used to render a form"
+      properties:
+        name:             { type: string }
+        displayName:      { type: string }
+        type:
+          type: string
+          enum:
+            - string
+            - number
+            - boolean
+            - options
+            - multiOptions
+            - json
+            - hidden
+            - notice
+            - collection
+            - fixedCollection
+            - dateTime
+            - color
+            - resourceLocator
+            - resourceMapper
+            - filter
+            - assignmentCollection
+        default: {}
+        placeholder:      { type: string }
+        description:      { type: string }
+        hint:             { type: string }
+        required:         { type: boolean }
+        noDataExpression: { type: boolean }
+        typeOptions:      { type: object, additionalProperties: true, description: "password, expirable, redactJsonLeaves, resolvable_field, ..." }
+        displayOptions:
+          type: object
+          additionalProperties: true
+          description: "Field visibility rules with _cnd predicates"
+        options:
+          type: array
+          items: { type: object, additionalProperties: true }
+
+    Credential:
+      type: object
+      properties:
+        id:                       { type: string, format: uuid }
+        type:                     { type: string, description: "Connector key" }
+        connector_key:            { type: string, deprecated: true }
+        name:                     { type: string, description: "display name" }
+        external_account_id:      { type: string, nullable: true }
+        status:                   { type: string, enum: [active, expired, revoked, errored] }
+        expires_at:               { type: string, format: date-time, nullable: true }
+        last_used_at:             { type: string, format: date-time, nullable: true }
+        created_at:               { type: string, format: date-time }
+        updated_at:               { type: string, format: date-time }
+        scopes:                   { type: array, items: { type: string }, nullable: true }
+        is_managed:               { type: boolean }
+        external_ref:             { type: string, nullable: true }
+        __overwritten_properties: { type: array, items: { type: string } }
+        data:
+          type: object
+          additionalProperties: true
+          description: "With include_data=true, decrypted data for the owner role only; shared viewers/editors omit data. MCP returns only public configuration for all visible connections."
+
+    SharePayload:
+      type: object
+      required: [principal_type, principal_id]
+      properties:
+        principal_type: { type: string, description: "host-defined type, e.g. User/Team/Project" }
+        principal_id:   { type: string, format: uuid }
+        role:           { type: string, enum: [viewer, editor, owner], default: viewer }
+
+    CredentialShare:
+      type: object
+      properties:
+        id:             { type: string, format: uuid }
+        grant_id:       { type: string, format: uuid }
+        principal_type: { type: string }
+        principal_id:   { type: string, format: uuid }
+        role:           { type: string, enum: [viewer, editor, owner] }
+
+    TestResult:
+      type: object
+      properties:
+        status:  { type: string, enum: [OK, ERROR] }
+        message: { type: string, nullable: true }
+        detail:  { type: object, additionalProperties: true, nullable: true }
+
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+  responses:
+    McpRateLimited:
+      description: Upstream rate limit; the operation is not automatically replayed
+      headers:
+        Retry-After:
+          description: Valid upstream delay-seconds or HTTP date; omitted if unavailable
+          schema: { type: string }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/McpError" }
+    McpFailure:
+      description: Typed MCP failure; authorization_required can include an encrypted consent context.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/McpError" }
+    Unauthorized:
+      description: Unauthorized (missing owner, role gate, or signature)
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Resource or connector type not found
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    WebhookAccepted:
+      description: Event accepted and queued
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              event_id: { type: string, format: uuid }
+              status:   { type: string, enum: [accepted, duplicate] }

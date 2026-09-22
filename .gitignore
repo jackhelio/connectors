@@ -1,0 +1,16 @@
+/.bundle/
+/vendor/bundle/
+/doc/
+/log/*.log
+/pkg/
+/tmp/
+/test/dummy/log/*.log
+/test/dummy/storage/
+/test/dummy/tmp/
+
+# Local package artifacts and macOS metadata
+/*.gem
+.DS_Store
+
+# Internal planning and review documents
+/internal-docs/
