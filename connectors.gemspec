@@ -5,7 +5,7 @@ Gem::Specification.new do |spec|
   spec.version     = Connectors::VERSION
   spec.authors     = [ "Jackson Helio" ]
   spec.email       = [ "4428869+jackhelio@users.noreply.github.com" ]
-  spec.homepage    = "https://github.com/fineo/connectors"
+  spec.homepage    = "https://github.com/jackhelio/connectors"
   spec.summary     = "Rails connector engine for provider APIs and remote MCP tools."
   spec.description = "Mountable Rails engine with encrypted credentials, role-based sharing, OAuth, provider actions, webhooks and polling. Includes authenticated HTTP clients and remote MCP tool discovery and invocation with durable OAuth and elicitation. Hosts supply authentication, encryption keys and scheduling."
   spec.license     = "MIT"
@@ -13,8 +13,7 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.2.0"
   spec.requirements = [ "PostgreSQL 13+; UUID primary keys for owner and sharing-principal models" ]
 
-  # Block accidental pushes to RubyGems.org. This is a private gem distributed via git source.
-  spec.metadata["allowed_push_host"] = "https://rubygems.invalid"
+  spec.metadata["allowed_push_host"] = "https://rubygems.org"
   spec.metadata["homepage_uri"]      = spec.homepage
   spec.metadata["source_code_uri"]   = "#{spec.homepage}/tree/main"
   spec.metadata["documentation_uri"] = "#{spec.homepage}/blob/main/README.md"

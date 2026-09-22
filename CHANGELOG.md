@@ -1,8 +1,10 @@
 # Changelog
 
-Changes are recorded here before release. The source version is currently `0.1.0`; no published release or release date is asserted by this document.
+Changes are recorded here before release. Published packages are listed on [RubyGems](https://rubygems.org/gems/connectors).
 
 ## Unreleased
+
+## 0.1.0 — 2026-09-22
 
 ### Added
 
@@ -11,6 +13,7 @@ Changes are recorded here before release. The source version is currently `0.1.0
 - MCP 2026-07-28 remote tool discovery/invocation, durable user authorization and elicitation, and cancellable subscriptions. Supported scope is documented in the MCP guide.
 - Per-consumer polling state and regression/interoperability coverage.
 - Installation, architecture, connector authoring, development and release documentation; strict package installation/boot verification.
+- Public RubyGems metadata and a tag-triggered trusted publishing workflow gated by lint, tests and installed-package verification.
 
 ### Fixed
 
