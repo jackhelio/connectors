@@ -1,12 +1,12 @@
 require "rails_helper"
 
-# Phase 4 — OAuth completeness. Covers:
+# OAuth flows and revocation. Covers:
 #   • OAuth2 `clientCredentials` grant (server-to-server, no redirect)
 #   • OAuth2 PKCE flow (S256 challenge + verifier round-tripped in state)
 #   • OAuth1.0a request-token + access-token legs
 #   • RFC 7009 token revocation (declarative URL + override block)
-RSpec.describe "Phase 4 — OAuth completeness", type: :request do
-  let(:owner) { Owner.create!(name: "phase 4 owner") }
+RSpec.describe "OAuth completeness", type: :request do
+  let(:owner) { Owner.create!(name: "test owner") }
 
   # ---- shared setup helpers --------------------------------------------------
   def configure!(creds)
@@ -227,7 +227,7 @@ RSpec.describe "Phase 4 — OAuth completeness", type: :request do
           auth.include?("oauth_consumer_key=\"consumer-key\"")
         }
         .to_return(status: 200,
-                   body: "oauth_token=access-tok&oauth_token_secret=access-secret&screen_name=jackson",
+                   body: "oauth_token=access-tok&oauth_token_secret=access-secret&screen_name=test_user",
                    headers: { "Content-Type" => "application/x-www-form-urlencoded" })
 
       expect {
@@ -359,7 +359,7 @@ RSpec.describe "Phase 4 — OAuth completeness", type: :request do
   end
 
   describe "OAuth1 base credential type registry" do
-    it "is registered as :oauth1_api with the n8n field set" do
+    it "is registered as :oauth1_api with consumer credentials and endpoint fields" do
       schema = Connectors::CredentialTypeRegistry.fetch(:oauth1_api)
       field_names = schema.own_fields.map { |f| f.name.to_sym }
       expect(field_names).to include(

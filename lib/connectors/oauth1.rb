@@ -5,12 +5,8 @@ require "uri"
 require "faraday"
 
 module Connectors
-  # OAuth1.0a — RFC 5849. Two-leg request-token / access-token flow with
-  # HMAC-SHA1/SHA256/SHA512 request signing. n8n parity:
-  # `oauth.service.ts:601-700` (request-token leg) +
-  # `oauth1-credential.controller.ts:43-101` (callback / access-token leg).
-  # n8n uses the `oauth-1.0a` npm package; we implement the signing inline
-  # to keep the engine dependency-free.
+  # OAuth1.0a (RFC 5849) request-token and access-token exchanges
+  # with HMAC-SHA1, HMAC-SHA256 or HMAC-SHA512 signing.
   module OAuth1
     module_function
 
@@ -20,7 +16,7 @@ module Connectors
       "HMAC-SHA512" => "SHA512"
     }.freeze
 
-    # Phase 1 of the flow: request the unauthorized request token. Sends an
+    # Request-token step: request the unauthorized request token. Sends an
     # OAuth1-signed POST to `requestTokenUrl`. Provider returns
     # `oauth_token` + `oauth_token_secret` (URL-encoded form). We need both
     # to (a) build the authorize URL the owner is redirected to and (b)
@@ -60,7 +56,7 @@ module Connectors
       }
     end
 
-    # Phase 2: trade the verifier + token for the long-lived access token.
+    # Exchange the verifier and request token for an access token.
     def exchange_access_token(connector_class, oauth_token:, oauth_verifier:, oauth_token_secret:)
       config  = connector_class.oauth1_config or
         raise Connectors::Error.new("#{connector_class}: oauth1 ... DSL not declared")

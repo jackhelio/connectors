@@ -1,14 +1,12 @@
 require "rails_helper"
 
-# Phase 2 — generic HTTP authentication credential types. Each mirrors one
-# of n8n's `packages/nodes-base/credentials/Http*Auth.credentials.ts`.
-# Connectors `extends :http_bearer_auth` (etc.) to inherit both fields AND
-# the declarative `authenticate` block.
-RSpec.describe "Generic HTTP auth credential types (Phase 2)" do
+# Base HTTP credential schemas provide inherited fields and, where
+# supported, declarative authentication properties.
+RSpec.describe "Generic HTTP auth credential types" do
   let(:reg) { Connectors::CredentialTypeRegistry }
 
   describe "Registry — six types live alongside :oauth2" do
-    it "registers every Http*Auth name n8n ships" do
+    it "registers all six HTTP authentication schemas" do
       expect(reg.all.keys).to include(
         :oauth2,
         :http_basic_auth, :http_bearer_auth, :http_header_auth,
@@ -16,20 +14,20 @@ RSpec.describe "Generic HTTP auth credential types (Phase 2)" do
       )
     end
 
-    it "marks all six as generic_auth (n8n's `genericAuth: true`)" do
+    it "marks all six as generic_auth" do
       %i[http_basic_auth http_bearer_auth http_header_auth http_query_auth http_digest_auth http_custom_auth]
         .each { |name| expect(reg.fetch(name).generic_auth?).to be(true), "#{name} should be generic" }
     end
   end
 
-  describe "Schema shapes — match n8n's properties verbatim" do
+  describe "Credential form fields" do
     it "http_basic_auth exposes user + password (password masked)" do
       props = reg.fetch(:http_basic_auth).resolved_fields.map(&:to_property)
       expect(props.map { |p| p[:name] }).to eq(%w[user password])
       expect(props.find { |p| p[:name] == "password" }[:typeOptions]).to include("password" => true)
     end
 
-    it "http_bearer_auth exposes token + the n8n custom-header notice" do
+    it "http_bearer_auth exposes token + the custom-header notice" do
       names = reg.fetch(:http_bearer_auth).resolved_fields.map { |f| f.name.to_s }
       expect(names).to include("token", "_notice_custom_auth")
       notice = reg.fetch(:http_bearer_auth).resolved_fields.find { |f| f.name == :_notice_custom_auth }
@@ -41,7 +39,7 @@ RSpec.describe "Generic HTTP auth credential types (Phase 2)" do
       expect(names).to include("name", "value", "_notice_multi")
     end
 
-    it "http_query_auth exposes name + value (no notice — n8n parity)" do
+    it "http_query_auth exposes name + value without a notice field" do
       names = reg.fetch(:http_query_auth).resolved_fields.map { |f| f.name.to_s }
       expect(names).to eq(%w[name value])
     end
@@ -64,7 +62,7 @@ RSpec.describe "Generic HTTP auth credential types (Phase 2)" do
   describe "Inherited authenticate block — runtime injection via extends" do
     # Each test connector extends one of the runtime-supported HTTP auth
     # types and confirms an outbound request gets the correct injection.
-    let(:owner) { Owner.create!(name: "phase 2") }
+    let(:owner) { Owner.create!(name: "test owner") }
 
     around do |example|
       example.run
@@ -169,11 +167,8 @@ RSpec.describe "Generic HTTP auth credential types (Phase 2)" do
   end
 
   describe "GET /connectors/types — surfaces each Http*Auth in the catalog", type: :request do
-    # The types endpoint serializes registered CONNECTORS (Registry.all),
-    # not credential TYPES. Base credential types like :http_bearer_auth
-    # are reached via /connectors/types/:name when a connector extends them
-    # OR — once Phase 5 lands — listed separately. For Phase 2 we just
-    # confirm the inheritance reflects in the connector's properties.
+    # The catalog lists connectors. Base credential fields appear in the
+    # resolved properties of connectors that extend those schemas.
     it "extends :http_bearer_auth contributes token + notice to a connector's properties" do
       Class.new(Connectors::Connector) do
         connector key: :p2_bearer_catalog, auth: :api_key, base_url: "https://x.test",

@@ -1,12 +1,8 @@
 require "rails_helper"
 
-# Phase 10 — external secrets manager integration. n8n parity with the EE
-# external-secrets module (`external-secrets.controller.ee.ts`): a grant
-# carries an `external_ref` string + `is_managed` flag, and the host's
-# `secrets_resolver` block returns the actual values at access time. The
-# `__overwritten_properties` array (n8n: `interfaces.ts:382`) tells the
-# editor which fields are vault-sourced and should be locked / hidden.
-RSpec.describe "Phase 10 — external secrets manager" do
+# Managed credentials resolve secrets through the host callback and
+# expose vault-sourced field names as __overwritten_properties.
+RSpec.describe "external secrets manager" do
   let(:owner) { Owner.create!(name: "p10 owner") }
 
   let!(:connector_class) do

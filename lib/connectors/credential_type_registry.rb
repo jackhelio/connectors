@@ -1,9 +1,6 @@
 module Connectors
-  # Registry of reusable base credential schemas that connectors `extends`.
-  # Mirrors n8n's pattern where every OAuth2 provider extends a single
-  # canonical `OAuth2Api` credential type (packages/nodes-base/credentials/
-  # OAuth2Api.credentials.ts:1-238). The registry is populated at engine
-  # boot — see `Connectors::Engine`.
+  # Registry of reusable credential schemas populated at engine boot.
+  # Connectors inherit registered schemas through extends.
   class CredentialTypeRegistry
     class << self
       def register(name, schema)
@@ -31,10 +28,8 @@ module Connectors
       end
     end
 
-    # Canonical OAuth2 credential schema — every OAuth2 provider connector
-    # extends this and overrides specific fields as `type: "hidden"` with a
-    # fixed `default`. Field set matches n8n's OAuth2Api credentials type
-    # (packages/nodes-base/credentials/OAuth2Api.credentials.ts:1-238).
+    # Base OAuth2 form. Provider connectors can override fields with hidden
+    # defaults to fix their endpoints and other configuration.
     OAUTH2 = CredentialSchema.build do
       field :grant_type,
             type:         "options",
@@ -95,10 +90,8 @@ module Connectors
               { name: "Body",            value: "body" }
             ]
 
-      # Phase 11 polish — OAuth2 advanced fields. n8n parity:
-      # `OAuth2Api.credentials.ts:208-237`. Form-only at the engine level
-      # (no runtime JWE decryption); ship the schema so the editor can
-      # render the configuration UI for enterprise SSO scenarios.
+      # JWE configuration metadata for form rendering only.
+      # The engine does not decrypt JWE tokens.
       field :jwe_enabled,
             type:         "boolean",
             display_name: "Encrypted Tokens (JWE)",
@@ -114,15 +107,11 @@ module Connectors
             display_options: { show: { jwe_enabled: [ true ] } }
     end
 
-    # n8n's canonical `OAuth1Api` credential type
-    # (packages/nodes-base/credentials/OAuth1Api.credentials.ts:1-72). Same
-    # storage shape as OAuth2's `client_id` / `client_secret` — they map to
-    # the `consumerKey` / `consumerSecret` here. Connectors that extend this
-    # type generally `field :authorization_url, type: "hidden", default: "..."`
-    # to lock the provider endpoint.
+    # Base OAuth1 form. Client ID and secret represent the consumer key
+    # and secret. Provider connectors can fix endpoint fields with hidden defaults.
     OAUTH1 = CredentialSchema.build do
       display_name      "OAuth1 API"
-      documentation_url "httprequest"
+      documentation_url "https://github.com/jackhelio/connectors/blob/main/CONNECTORS_FRAMEWORK.md#6-built-in-base-credential-types"
       generic_auth!
 
       field :authorization_url,

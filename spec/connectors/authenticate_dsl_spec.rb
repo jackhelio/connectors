@@ -1,9 +1,7 @@
 require "rails_helper"
 
-# Phase 1 — declarative `authenticate` DSL + AuthenticateGeneric middleware
-# + AuthInjection template resolver. Mirrors n8n's IAuthenticateGeneric
-# (packages/workflow/src/interfaces.ts:269-288).
-RSpec.describe "Declarative `authenticate` DSL (Phase 1)" do
+# Declarative authentication, credential template resolution and middleware.
+RSpec.describe "Declarative `authenticate` DSL" do
   describe Connectors::AuthInjection, ".resolve" do
     let(:credentials) { { "api_key" => "secret-key", "tenant" => "acme" } }
 
@@ -28,7 +26,7 @@ RSpec.describe "Declarative `authenticate` DSL (Phase 1)" do
       expect(result[:headers]).to eq("X-Tenant" => "tenant-acme")
     end
 
-    it "resolves missing fields to empty string (n8n behavior)" do
+    it "resolves missing fields to empty string" do
       result = described_class.resolve({ headers: { "X-Missing" => "=val-{{$credentials.absent}}" } }, credentials)
       expect(result[:headers]).to eq("X-Missing" => "val-")
     end
@@ -45,7 +43,7 @@ RSpec.describe "Declarative `authenticate` DSL (Phase 1)" do
   end
 
   describe "Resend rewired to declarative `authenticate`" do
-    let(:owner) { Owner.create!(name: "phase 1 owner") }
+    let(:owner) { Owner.create!(name: "test owner") }
     let(:grant) do
       Connectors::Grant.create!(
         owner:         owner,
@@ -120,8 +118,7 @@ RSpec.describe "Declarative `authenticate` DSL (Phase 1)" do
   end
 
   describe "Basic auth shortcut (`auth: { username:, password: }`)" do
-    # Synthesizes a test connector inline to exercise the Basic-auth path
-    # before Phase 2 ships HttpBasicAuth as a real base credential type.
+    # An anonymous connector exercises the Basic authentication shortcut.
     let(:owner) { Owner.create!(name: "basic owner") }
     let(:test_connector_class) do
       Class.new(Connectors::Connector) do

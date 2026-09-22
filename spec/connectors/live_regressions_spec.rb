@@ -1,13 +1,7 @@
 require "rails_helper"
 
-# Regressions found during the Step 4 end-to-end smoke against flow-api.
-# Two bugs surfaced when actually hitting the running server with curl:
-#
-# 1. `POST /credentials/:id/revoke` returned 500 (unhandled Connectors::Error)
-#    when the connector hadn't declared `revoke_token_url` — should be 401.
-# 2. `DELETE /credentials/:id` returned 500 (PG::ForeignKeyViolation) when the
-#    grant had any `WebhookEvent` rows pointing at it — should cascade-delete
-#    them.
+# Regression coverage for revocation without a configured endpoint
+# and credential deletion with dependent webhook events.
 RSpec.describe "Live-test regressions" do
   let(:owner) { Owner.create!(name: "regression owner") }
 

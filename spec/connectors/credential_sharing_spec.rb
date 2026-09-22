@@ -1,10 +1,7 @@
 require "rails_helper"
 
-# Phase 9 — credential sharing / scoping. n8n parity with
-# `enterprise/credentials.controller.ee.ts`. Engine stays host-agnostic:
-# the host wires `principal_resolver` to expose whatever set of identities
-# (User + Team + Project + ...) the requester has.
-RSpec.describe "Phase 9 — credential sharing", type: :request do
+# Credential sharing through host-defined principal types and IDs.
+RSpec.describe "credential sharing", type: :request do
   let!(:alice) { Owner.create!(name: "alice") }
   let!(:bob)   { Owner.create!(name: "bob") }
   let!(:carol) { Owner.create!(name: "carol") }

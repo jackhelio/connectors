@@ -3,21 +3,21 @@ info:
   title: Connectors Engine API
   version: "0.1.0"
   description: |
-    Rails engine exposing n8n's connections / credentials layer as a host-mountable API.
+    Rails engine for encrypted credentials, provider authorization, actions, webhooks, polling and remote MCP tools.
     Every endpoint is namespaced under the engine's mount path (default `/connectors`).
 
     **Auth model.** The engine itself doesn't authenticate requests — the host wires
     `Connectors.configuration.current_owner_resolver` to extract the requester from the
     controller (session, JWT, API key — host's choice). Endpoints that mutate
     credentials require an `Owner` to be resolvable; those that read enforce
-    role-based visibility via `principal_resolver` (Phase 9).
+    role-based visibility via `principal_resolver`.
 
     **Source of truth.** This document is hand-maintained alongside the engine.
-    Cross-check against `connectors/config/routes.rb` and the controller files —
+    Cross-check against `config/routes.rb` and the controller files —
     they are the implementation.
 
-    **Mount path.** The host picks where the engine lives. Reference deployment
-    (flow-api) uses `/api/v1/connectors`. The engine introspects its actual
+    **Mount path.** The host chooses the engine mount, such as `/connectors`
+    or `/api/v1/connectors`. The engine introspects its actual
     mount via `Connectors::Engine.mount_path`, so OAuth callback URLs and
     webhook subscribe URLs in responses always reflect reality.
   contact:
@@ -32,7 +32,7 @@ servers:
         default: "http://localhost:3000"
         description: Scheme + host of the host application
       mount:
-        default: "/api/v1/connectors"
+        default: "/connectors"
         description: Path where the host mounts Connectors::Engine
 
 tags:
@@ -281,7 +281,7 @@ paths:
                 type:         { type: string, description: "connector key" }
                 name:         { type: string }
                 data:         { type: object, additionalProperties: true, description: "credential values" }
-                external_ref: { type: string, description: "vault reference (Phase 10)" }
+                external_ref: { type: string, description: "vault reference" }
                 is_managed:   { type: boolean, default: false }
       responses:
         "201":
@@ -804,7 +804,7 @@ paths:
       - { name: webhook_name,  in: path, required: true, schema: { type: string } }
     post:
       tags: [Webhooks]
-      summary: App-level named-group webhook (Phase 7)
+      summary: App-level named-group webhook
       operationId: receiveAppWebhookNamed
       requestBody:
         required: true
@@ -888,12 +888,12 @@ components:
         extends:            { type: array, items: { type: string }, description: "base credential types inherited from" }
         properties:
           type: array
-          description: "n8n INodeProperties array"
+          description: "Credential form field descriptors"
           items: { $ref: "#/components/schemas/Field" }
         authenticate:
           type: object
           nullable: true
-          description: "n8n IAuthenticateGeneric"
+          description: "Declarative credential injection properties"
           properties:
             type:       { type: string, enum: [generic] }
             properties: { type: object, additionalProperties: true }
@@ -960,7 +960,7 @@ components:
 
     Action:
       type: object
-      description: "one thing a connector can DO with a credential (n8n operation / Activepieces action)"
+      description: "A provider operation exposed by a connector"
       properties:
         name:         { type: string, description: "machine key, e.g. send_email" }
         display_name: { type: string }
@@ -973,12 +973,12 @@ components:
           items: { $ref: "#/components/schemas/Field" }
         output:
           type: array
-          description: "shape of the value the action returns (Activepieces returns: …)"
+          description: "Schema of the action result"
           items: { $ref: "#/components/schemas/Field" }
 
     Field:
       type: object
-      description: "n8n INodeProperties — frontend renders the form from this"
+      description: "Input field descriptor used to render a form"
       properties:
         name:             { type: string }
         displayName:      { type: string }
@@ -1011,7 +1011,7 @@ components:
         displayOptions:
           type: object
           additionalProperties: true
-          description: "show/hide rules with _cnd predicates (n8n IDisplayOptions)"
+          description: "Field visibility rules with _cnd predicates"
         options:
           type: array
           items: { type: object, additionalProperties: true }
@@ -1020,7 +1020,7 @@ components:
       type: object
       properties:
         id:                       { type: string, format: uuid }
-        type:                     { type: string, description: "connector key (n8n vocabulary)" }
+        type:                     { type: string, description: "Connector key" }
         connector_key:            { type: string, deprecated: true }
         name:                     { type: string, description: "display name" }
         external_account_id:      { type: string, nullable: true }

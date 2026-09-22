@@ -9,13 +9,9 @@ module Connectors
     # request shape (Google's revoke is `?token=`, etc.), so a connector
     # can also override the whole call with a block:
     #
-    #   revoke_token do |connector, grant|
-    #     connector.client.delete("oauth/tokens/#{grant.credentials_hash['access_token']}")
+    #   revoke_token do |grant|
+    #     client.delete("oauth/tokens/#{grant.credentials_hash['access_token']}")
     #   end
-    #
-    # n8n parity: per-provider, no centralized contract — n8n's oauth
-    # service implements it ad-hoc on a per-credential basis. We give
-    # connectors a single uniform DSL.
     class Revoke
       def self.call(connector_class, grant)
         new(connector_class, grant).call

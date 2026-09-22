@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "Connector type polish (Wave E)", type: :request do
+RSpec.describe "Connector catalog metadata", type: :request do
   describe "GET /connectors/types — icon + docs URL + display_name" do
     it "exposes Resend's icon, color, display_name, and documentation_url" do
       get "/connectors/types/resend"
@@ -27,15 +27,14 @@ RSpec.describe "Connector type polish (Wave E)", type: :request do
   describe "DisplayCondition `_cnd` predicates pass through display_options unchanged" do
     let(:schema_class) do
       Class.new(Connectors::Connector) do
-        connector key: :wave_e_demo, auth: :api_key, base_url: "https://example.test"
+        connector key: :conditional_fields, auth: :api_key, base_url: "https://example.test"
         credentials do
           field :mode, type: "options", default: "simple",
                        options: [
                          { name: "Simple",   value: "simple" },
                          { name: "Advanced", value: "advanced" }
                        ]
-          # n8n's `_cnd` predicates (interfaces.ts:1730-1742) — frontend
-          # interprets these to decide field visibility.
+          # Clients interpret _cnd predicates to decide field visibility.
           field :advanced_url, type: "string",
                                 display_options: {
                                   show: { mode: [ "advanced" ] }
@@ -51,11 +50,11 @@ RSpec.describe "Connector type polish (Wave E)", type: :request do
     before { schema_class }   # force registration
 
     after do
-      Connectors::Registry.instance_variable_get(:@store)&.delete(:wave_e_demo)
+      Connectors::Registry.instance_variable_get(:@store)&.delete(:conditional_fields)
     end
 
     it "serializes _cnd predicates intact (no reformatting / loss)" do
-      get "/connectors/types/wave_e_demo"
+      get "/connectors/types/conditional_fields"
       pattern_field = response.parsed_body["properties"].find { |p| p["name"] == "pattern" }
       expect(pattern_field["displayOptions"]).to eq(
         "show" => { "advanced_url" => [ { "_cnd" => { "regex" => "^https://" } } ] }
@@ -63,7 +62,7 @@ RSpec.describe "Connector type polish (Wave E)", type: :request do
     end
 
     it "passes plain value-array display_options through too" do
-      get "/connectors/types/wave_e_demo"
+      get "/connectors/types/conditional_fields"
       adv_field = response.parsed_body["properties"].find { |p| p["name"] == "advanced_url" }
       expect(adv_field["displayOptions"]).to eq("show" => { "mode" => [ "advanced" ] })
     end

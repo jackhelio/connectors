@@ -32,11 +32,8 @@ module Connectors
   class AuthenticationFailed < ApiError; end
   class Forbidden < ApiError; end
 
-  # A credential was used with a node that's not on its `supported_nodes`
-  # allowlist, OR the credential is marked generic_auth-only and the caller
-  # is a non-HTTP-Request node. Mirrors the visibility gate n8n applies via
-  # the credential's `supportedNodes` field (interfaces.ts:381) and
-  # `genericAuth` flag (interfaces.ts:379).
+  # Raised when a credential does not permit the requested node type
+  # under its supported_nodes and generic_auth settings.
   class CredentialNotPermitted < Error
     def initialize(connector_key, node_type, reason: nil)
       msg = "credential #{connector_key.inspect} is not permitted for node #{node_type.inspect}"

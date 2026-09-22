@@ -1,10 +1,6 @@
 module Gmail
-  # Shared HTTP layer for every Gmail action. Mirrors n8n's
-  # `googleApiRequest` / `googleApiRequestAllItems` in
-  # `packages/nodes-base/nodes/Google/Gmail/GenericFunctions.ts` —
-  # one entry point that normalizes Google-specific errors into our
-  # `Connectors::ApiError` hierarchy with user-friendly messages,
-  # plus an auto-paginating variant for `*.list` endpoints.
+  # Shared HTTP layer for Gmail actions. Normalizes provider errors into
+  # the Connectors::ApiError hierarchy and paginates list endpoints.
   module Api
     module_function
 
@@ -29,8 +25,7 @@ module Gmail
       raise translate(e, resource: resource)
     end
 
-    # Walks `nextPageToken` until exhausted; concatenates the array at
-    # `property_name`. Matches n8n's signature so the porting is mechanical.
+    # Walks `nextPageToken` until exhausted and concatenates `property_name` arrays.
     def request_all(client, property_name, method, path, body: nil, query: nil, resource: "resource", page_size: 100)
       items = []
       q     = (query || {}).dup
@@ -47,9 +42,8 @@ module Gmail
       items
     end
 
-    # n8n's `googleApiRequest` rescue ladder — translated to our types.
-    # When a translation matches, we raise a new ApiError with the
-    # user-meaningful message; otherwise the original passes through.
+    # Translate recognized provider errors into actionable messages.
+    # Unrecognized errors pass through unchanged.
     def translate(error, resource:)
       status  = error.respond_to?(:status) ? error.status.to_i : 0
       body    = error.respond_to?(:body) ? error.body : nil
@@ -73,9 +67,7 @@ module Gmail
           status: status, body: body
         )
       when 409
-        # n8n parity: any 409 on the label resource is treated as a
-        # name collision — Gmail's API doesn't return 409 for any other
-        # reason on /users/me/labels.
+        # Treat a label conflict as a name collision.
         if resource.to_s == "label"
           raise Connectors::ApiError.new("Label name already exists", status: status, body: body)
         end

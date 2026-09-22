@@ -5,9 +5,7 @@ Connectors::Engine.routes.draw do
   post "/credentials/:id/mcp/authorize", to: "mcp#authorize"
   get  "/mcp/oauth/callback", to: "mcp#callback"
   post "/mcp/oauth/callback", to: "mcp#callback"
-  # Catalog + connected-account introspection. Declared first so /grants and
-  # /types aren't interpreted as a :connector_key.
-  # n8n-shape credential CRUD (the canonical endpoints — frontend uses these).
+  # Catalog and credential routes precede the dynamic :connector_key routes.
   get    "/credentials",                    to: "credentials#index",        as: :credentials
   get    "/credentials/for-workflow",       to: "credentials#for_workflow", as: :credentials_for_workflow
   post   "/credentials/test",               to: "credentials#test_unsaved", as: :test_unsaved_credential
@@ -26,7 +24,7 @@ Connectors::Engine.routes.draw do
   post   "/credentials/:id/actions/:name",  to: "actions#create",           as: :invoke_credential_action,
                                             constraints: { name: /[^\/]+/ }
 
-  # Phase 9 — credential sharing / scoping
+  # Credential sharing and ownership transfer.
   put    "/credentials/:id/share",          to: "credentials#share",        as: :share_credential
   delete "/credentials/:id/share",          to: "credentials#unshare"
   put    "/credentials/:id/transfer",       to: "credentials#transfer",     as: :transfer_credential
@@ -40,25 +38,20 @@ Connectors::Engine.routes.draw do
   get  "/types",                            to: "types#index",      as: :types
   get  "/types/:name",                      to: "types#show",       as: :type, constraints: { name: /[^\/]+/ }
 
-  # Split frontend/backend OAuth completion (Activepieces-style). The
-  # frontend's `/oauth/callback` page POSTs `{code, state}` here after the
-  # provider redirects to it.
+  # Separate frontend callbacks POST `{code, state}` here after consent.
   post "/oauth/exchange",                   to: "oauth#exchange",       as: :oauth_exchange
 
   get  "/:connector_key/authorize.json",    to: "oauth#authorize_json", as: :authorize_json
   get  "/:connector_key/authorize",         to: "oauth#authorize",      as: :authorize
-  # Legacy monolithic-host callback — same-origin frontend/backend hosts
-  # (n8n-style). Split-origin apps point the redirect_uri at the frontend
-  # and POST to /oauth/exchange instead.
+  # Provider callback for hosts using the engine callback URL.
+  # Hosts with a separate frontend callback use /oauth/exchange instead.
   get  "/:connector_key/callback",          to: "oauth#callback",       as: :callback
 
   # App-level webhook URL (Slack, GitHub Apps, Linear, Notion, ...): one URL
   # per app, grant resolved from payload via Connector.resolve_grant_from_webhook.
   post "/:connector_key/webhook",                          to: "webhooks#receive", as: :app_webhook
 
-  # Phase 7 — multi-webhook providers route by `webhook_name` segment so
-  # `webhookMethods.default` and `webhookMethods.setup` get distinct URLs
-  # (mirrors n8n's `IWebhookDescription.name` at interfaces.ts:2600).
+  # Named webhook groups have distinct URLs, such as default and setup.
   post "/:connector_key/webhook/:webhook_name",            to: "webhooks#receive", as: :named_app_webhook
 
   # Per-grant webhook URL (Stripe, Twilio, ...): grant explicit in URL.

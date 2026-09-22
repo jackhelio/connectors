@@ -3,11 +3,7 @@ module Connectors
   # and filters even when consumers share credentials. Omitting the key keeps
   # the legacy, per-grant cursor for existing single-consumer integrations.
   #
-  # n8n parity: `INodeType#poll(this: IPollFunctions)` (interfaces.ts:2060),
-  # cursor persistence via `getWorkflowStaticData('node')`
-  # (interfaces.ts:1257-1274). The scheduler that decides *when* to fire
-  # this is a workflow-roadmap concern; this primitive just exposes the
-  # one-shot contract.
+  # The host schedules calls and delivers returned items.
   class PollRunner
     GROUP = "polling".freeze
 

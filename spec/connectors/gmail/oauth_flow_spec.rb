@@ -2,13 +2,13 @@ require "rails_helper"
 
 # End-to-end OAuth dance for Gmail in both supported topologies:
 #
-#   1. SPLIT frontend/backend (Activepieces-style — flow-app + flow-api):
+#   1. Separate frontend/backend:
 #      frontend opens popup → provider redirects to FRONTEND `/oauth/callback`
 #      → frontend POSTs `{code, state}` to engine's `/oauth/exchange` →
 #      engine runs token exchange + creates Grant. Tested via the second
 #      `context` block.
 #
-#   2. MONOLITHIC same-origin (n8n-style):
+#   2. Same-origin frontend/backend:
 #      frontend opens popup OR redirects → provider redirects back to
 #      engine's `/<connector_key>/callback` → engine runs token exchange,
 #      renders JSON (or 302s to `state.return_to`). Tested via the first

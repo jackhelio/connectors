@@ -16,11 +16,8 @@ module Connectors
         @secrets         = Connectors.configuration.oauth_credentials_for(connector_class.connector_key)
       end
 
-      # The connector declares a DEFAULT scope set; callers can override it
-      # per request via the `scope:` argument (multi-tenant hosts often
-      # need a wider or narrower scope than the connector's baseline).
-      # n8n's `Gmail OAuth2 API.credentials.ts` does the same thing — the
-      # node ships defaults, the workflow editor can ask for more.
+      # The declared scopes are defaults; callers can override them
+      # per authorization request through the scope argument.
       def build(owner:, return_to: nil, scope: nil, name: nil, grant: nil)
         pkce = pkce_params if @config[:grant_type].to_s == "pkce"
 
@@ -66,10 +63,7 @@ module Connectors
         Connectors::OAuth::Pkce.generate
       end
 
-      # Reads from Connectors.configuration.app_callback_url when the host
-      # has wired a separate frontend callback page (Activepieces-style split
-      # frontend/backend); otherwise falls back to the engine's own
-      # `/<connector>/callback` route (n8n-style monolithic).
+      # Use a configured frontend callback or the mounted engine callback.
       def redirect_uri
         Connectors.configuration.resolved_app_callback_url(@connector_class.connector_key)
       end

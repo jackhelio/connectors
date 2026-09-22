@@ -1,8 +1,5 @@
 module Connectors
-  # Declarative webhook subscription lifecycle. Mirrors n8n's
-  # `INodeType.webhookMethods.default.{checkExists, create, delete}`
-  # (interfaces.ts:2017, 2091-2095; reference impl in
-  # `packages/nodes-base/nodes/Postmark/PostmarkTrigger.node.ts:114-247`).
+  # Declarative webhook subscription callbacks.
   #
   # Provider-specific contract:
   #
@@ -28,8 +25,7 @@ module Connectors
   #   end
   #
   # Multi-webhook providers (Slack has separate `default` event-delivery
-  # group + `setup` URL-verification group — n8n's `webhooks: IWebhookDescription[]`
-  # at interfaces.ts:2600) declare additional named groups:
+  # group + `setup` URL-verification group) declare additional named groups:
   #
   #   webhook_methods :setup    do ... end
   #   webhook_methods :default  do ... end

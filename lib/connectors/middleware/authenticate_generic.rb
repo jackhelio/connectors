@@ -2,17 +2,9 @@ require "base64"
 
 module Connectors
   module Middleware
-    # Faraday middleware that applies a connector's declarative
-    # `authenticate type: :generic, properties: {...}` block to every
-    # outgoing request, mirroring n8n's `IAuthenticateGeneric` runtime
-    # (n8n source: packages/workflow/src/interfaces.ts:278-288 + the
-    # request-helpers consumer at
-    # packages/core/src/node-execute-functions.ts).
-    #
-    # The Grant's credentials hash supplies values for the
-    # `={{$credentials.x}}` templates inside `properties`. Resolution runs
-    # per-request so credentials that rotate between requests (e.g. after a
-    # `preAuthentication` hook lands in Phase 3) are reflected immediately.
+    # Apply resolved authentication properties to each outgoing request.
+    # Credential templates are evaluated per request so rotated values,
+    # including values from pre_authentication, take effect immediately.
     class AuthenticateGeneric < Faraday::Middleware
       def initialize(app, grant:, authenticate_config:)
         super(app)
@@ -63,9 +55,7 @@ module Connectors
         body.each { |k, v| env.body[k.to_s] = v }
       end
 
-      # n8n's `IRequestOptionsSimplifiedAuth.auth` shortcut for HTTP Basic
-      # (interfaces.ts:198-202). Sets the `Authorization: Basic ...` header
-      # directly so we don't double-handle.
+      # Set the HTTP Basic Authorization header from username and password.
       def apply_basic_auth(env, auth)
         return if auth.nil?
         username = auth[:username] || auth["username"]

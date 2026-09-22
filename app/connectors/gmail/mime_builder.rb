@@ -19,9 +19,6 @@ module Gmail
   #   - Subject + From/To/Cc display-name phrases: RFC 2047 encoded-word
   #   - Attachment filenames: RFC 2231 continuation (filename*=UTF-8''…)
   #   - Bodies: base64 transfer-encoded UTF-8
-  #
-  # n8n parity: their Gmail node uses nodemailer's mail-composer for the
-  # same job. We hand-roll because Gmail only needs the simple subset.
   class MimeBuilder
     CRLF = "\r\n".freeze
 

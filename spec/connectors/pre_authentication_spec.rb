@@ -1,13 +1,8 @@
 require "rails_helper"
 
-# Phase 3 — `pre_authentication` hook. Runs before each outgoing request
-# when the grant's credentials look stale (expires_at missing or past).
-# Mirrors n8n's `ICredentialType.preAuthentication`
-# (packages/workflow/src/interfaces.ts:374-377). Reference impl:
-# CrowdStrikeOAuth2Api.credentials.ts:62-76 — fetches a session token
-# from /oauth2/token and merges `{ sessionToken }` into credentials.
-RSpec.describe "pre_authentication hook (Phase 3)" do
-  let(:owner) { Owner.create!(name: "phase 3 owner") }
+# Pre-authentication refreshes credentials when expires_at is absent or past.
+RSpec.describe "pre_authentication hook" do
+  let(:owner) { Owner.create!(name: "test owner") }
 
   # Build a CrowdStrike-shape test connector: client_id + client_secret →
   # /oauth2/token → session_token → injected as Bearer header on every call.

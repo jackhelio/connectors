@@ -2,11 +2,11 @@
 
 The engine consumes remote MCP **2026-07-28** servers through Streamable HTTP. It supports public servers, bearer tokens, custom authentication headers, and user OAuth with discovery, PKCE, registration, refresh and scope upgrades. Tools remain scoped to their grant; they are not added to the global connector registry.
 
-The implementation uses public helpers from `mcp` **1.6.0**, `json_schemer` **2.5**, and `event_stream_parser` **1.0**. Its durable OAuth coordinator and HTTP transport are owned by this engine. The SDK's synchronous OAuth flow and high-level tool projection did not meet the reviewed requirements. No SDK private methods are patched or invoked. Server result types are validated against the vendored, versioned official schema; its source and license are in [protocol/README.md](lib/connectors/mcp/protocol/README.md).
+The implementation uses public helpers from `mcp` **1.6.0**, `json_schemer` **2.5**, and `event_stream_parser` **1.0**. The engine implements durable OAuth coordination and HTTP transport, using only public SDK interfaces. Server result types are validated against the vendored, versioned official schema; its source and license are in [protocol/README.md](lib/connectors/mcp/protocol/README.md).
 
 ## Installation and host setup
 
-Run `bundle install` and the host's migrations. The new migration creates encrypted, expiring authorization and interaction records, with PostgreSQL foreign keys and one-time claims. Existing connector tables and credentials are preserved.
+Run `bundle install` and the host's migrations. Migrations create encrypted, expiring authorization and interaction records, with PostgreSQL foreign keys and one-time claims.
 
 Follow the [host installation guide](README.md#installation), including encryption and trusted authentication middleware. Configure the engine's existing owner/principal resolvers. These remain the authentication boundary; callers must never supply their own trusted principal list through request parameters.
 
@@ -74,9 +74,9 @@ The named connector fixes the official endpoint to `https://mcp.clickup.com/mcp`
 
 `GET /connectors/types/clickup` exposes `connector.mcp` metadata with endpoint, authentication mode, protocol version and grant-scoped URL templates. Replace `:id` with the created credential ID. `connector.redirect_uri` uses the same callback resolver as authorization. The generic MCP type exposes the same workflow metadata, with a user-configured endpoint and authentication mode.
 
-**Evidence and validation (2026-09-22):** [ClickUp's official documentation](https://developer.clickup.com/docs/connect-an-ai-assistant-to-clickups-mcp-server) specifies the endpoint and OAuth-only authentication. Its live 401 challenge points to [protected-resource metadata](https://mcp.clickup.com/.well-known/oauth-protected-resource/mcp), advertising `read` and `write` scopes. Its [authorization-server metadata](https://mcp.clickup.com/.well-known/oauth-authorization-server) advertises S256 PKCE, dynamic registration, public-client token authentication and required callback issuer identification. It advertises `authorization_code` without `refresh_token`; registration requests respect that metadata. Endpoints and scopes are discovered at runtime, not copied into provider-specific OAuth code.
+**Provider discovery:** [ClickUp's official documentation](https://developer.clickup.com/docs/connect-an-ai-assistant-to-clickups-mcp-server) specifies the endpoint and OAuth-only authentication. Its live 401 challenge points to [protected-resource metadata](https://mcp.clickup.com/.well-known/oauth-protected-resource/mcp), advertising `read` and `write` scopes. Its [authorization-server metadata](https://mcp.clickup.com/.well-known/oauth-authorization-server) advertises S256 PKCE, dynamic registration, public-client token authentication and required callback issuer identification. It advertises `authorization_code` without `refresh_token`; registration requests respect that metadata. Endpoints and scopes are discovered at runtime, not copied into provider-specific OAuth code.
 
-Request specs use captured public metadata and simulated registration/token/tool responses. The synthetic tool in those specs is explicitly a fixture. Live verification has covered public discovery and a demo owner completing consent with encrypted credential storage. Authenticated tool discovery/invocation against that Workspace has not been verified by the automated fixture suite.
+Request specs use captured public metadata and simulated registration, token and tool responses. Synthetic tools are fixtures, not a fixed catalog of ClickUp capabilities. Automated tests do not authorize or invoke tools against a live ClickUp account.
 
 ## Discover, invoke and resume
 
@@ -158,7 +158,7 @@ This release targets **2026-07-28 remote tools**. It does not advertise historic
 
 ## Validation
 
-Validated on 2026-09-22 after packaging and documentation review: **543 examples, 0 failures** (random seed `17450`, frozen lockfile), **200 Ruby files with no RuboCop offenses**, and a strict gem build plus isolated installation/boot check. This includes the existing connector regression suite.
+The [contributing guide](CONTRIBUTING.md) describes the test environment and package verification. CI runs RSpec, RuboCop and an isolated installation/boot check.
 
 RSpec covers protocol/schema contracts, authentication/registration, access isolation, secret serialization, real PostgreSQL concurrency, durable resume, real chunked SSE and idle cancellation. Interoperability runs against:
 

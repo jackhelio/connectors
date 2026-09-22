@@ -52,7 +52,7 @@ RSpec.describe Gmail::Connector do
       expect(described_class.rate_limit_config).to eq(limit: 2, per: 1.second)
     end
 
-    it "declares the full action surface (messages, threads, labels, drafts) at n8n parity" do
+    it "declares the full action surface (messages, threads, labels, drafts)" do
       expect(described_class.actions.map(&:key)).to match_array([
         # messages
         :send_message, :reply_to_message,

@@ -25,7 +25,7 @@ gem "connectors", "~> 0.1.0"
 gem "pg"
 ```
 
-Then run `bundle install`. Before the first publication, or to test unreleased changes, use `gem "connectors", git: "https://github.com/jackhelio/connectors.git", ref: "<reviewed-commit-sha>"` instead, replacing the ref with an actual reviewed commit. Local development can use `gem "connectors", path: "../connectors"`. See [release checks](docs/releasing.md).
+Then run `bundle install`. To test unreleased changes, use `gem "connectors", git: "https://github.com/jackhelio/connectors.git", ref: "<reviewed-commit-sha>"` instead, replacing the ref with an actual reviewed commit. Local development can use `gem "connectors", path: "../connectors"`. See [release checks](docs/releasing.md).
 
 Mount the engine in `config/routes.rb`:
 

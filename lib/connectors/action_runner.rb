@@ -1,8 +1,7 @@
 module Connectors
   # Validates an Action's input params and invokes its execute block in the
-  # connector instance's context. Returns a normalized response envelope —
-  # both the controller and the (eventual) workflow executor consume the
-  # same shape.
+  # connector instance's context. Returns the same normalized response
+  # envelope to HTTP controllers and direct Ruby callers.
   #
   #   result = ActionRunner.call(grant, :send_email, { "from" => "x", "to" => "y", ... })
   #   # => { status: "ok",    action: "send_email", data: { "id" => "abc-123" } }
@@ -11,9 +10,7 @@ module Connectors
   #   #      error: { type: "api_error", message: "...", status: 422 } }
   #
   # The runner does not catch arbitrary StandardError — only Connectors::
-  # errors. Anything else propagates so the caller can render a 500. This
-  # mirrors how the workflow executor expects "unexpected" failures to be
-  # visible in logs rather than silently absorbed.
+  # errors. Unexpected failures propagate to the caller.
   class ActionRunner
     OK    = "ok".freeze
     ERROR = "error".freeze
@@ -63,11 +60,8 @@ module Connectors
       provided = @input.keys
       missing  = action.required_param_names.reject { |k| @input.key?(k) && !blank?(@input[k]) }
       raise Connectors::InvalidActionParams.new(missing: missing) if missing.any?
-      # Note: we intentionally don't reject `unknown:` keys. n8n nodes
-      # frequently pass `additionalFields` collections that pack many
-      # optional values under one key; the connector's execute block
-      # decides which subset to honor. Strict-mode rejection can come
-      # later as an opt-in DSL flag.
+      # Unknown keys do not fail validation; coerced_input drops them
+      # before invoking the execute block.
       _ = provided
     end
 

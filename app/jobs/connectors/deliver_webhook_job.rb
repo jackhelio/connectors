@@ -8,10 +8,8 @@ module Connectors
       event = WebhookEvent.find(event_id)
       return if event.processed? || event.ignored?
 
-      # Phase 7: always hand the connector a `WebhookContext` (n8n parity
-      # with `IWebhookFunctions`). The context still exposes `.event` /
-      # `.payload_hash` so handlers written against the old `event` arg
-      # keep working without changes — the new accessors are additive.
+      # Pass request data through WebhookContext. Its event and payload_hash
+      # accessors also support handlers that consume the persisted event.
       event.grant.connector.handle_webhook(Connectors::WebhookContext.new(event))
       event.update!(status: :processed, processed_at: Time.current, error_message: nil)
 

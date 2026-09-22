@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe Connectors::CredentialSchema do
   describe ".build" do
-    it "yields a schema and registers fields with n8n-shaped properties" do
+    it "yields a schema and registers fields with serialized form properties" do
       schema = described_class.build do
         field :access_token,  type: "string", required: true, secret: true
         field :refresh_token, type: "string", secret: true

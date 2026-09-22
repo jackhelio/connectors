@@ -4,16 +4,9 @@ require_dependency Connectors::Engine.root.join("app/connectors/gmail/mime_parse
 require_dependency Connectors::Engine.root.join("app/connectors/gmail/polling.rb").to_s
 
 module Gmail
-  # Gmail OAuth2 connector. Talks to gmail.googleapis.com using a Bearer
-  # access_token. Auth is the standard Google OAuth2 redirect dance with
-  # PKCE (Google enforces it for confidential clients) and refresh_token
-  # rotation. Per Jackson's call: the scope set declared here is a
-  # SUGGESTION — the host can override per-grant by passing `?scope=...`
-  # to /authorize, so multi-tenant apps can ask for narrower / wider sets.
-  #
-  # n8n parity: packages/nodes-base/credentials/GmailOAuth2.credentials.ts
-  # + packages/nodes-base/nodes/Google/Gmail/v2/GmailV2.node.ts. Action
-  # surface mirrors n8n's Message / Label / Thread / Draft resources.
+  # Gmail OAuth2 connector with PKCE and refresh-token support.
+  # The declared scopes are defaults; hosts can override them with the
+  # `scope` parameter when starting authorization.
   class Connector < Connectors::Connector
     DEFAULT_SCOPES = [
       "openid",
@@ -94,13 +87,8 @@ module Gmail
 
     test_request method: :get, url: "users/me/profile"
 
-    # =========================================================================
-    # POLLING TRIGGER — Gmail-as-trigger via users.messages.list?q=after:<ts>
-    # n8n parity: packages/nodes-base/nodes/Google/Gmail/GmailTrigger.node.ts
-    # Cursor: { last_checked_at: <unix>, possible_duplicates: [<id>, ...] }
-    # Filters supplied by the workflow author at runtime (passed through
-    # `grant.static_data["polling"]["filters"]` if set, otherwise nil).
-    # =========================================================================
+    # Polls users.messages.list using a timestamp cursor and duplicate IDs.
+    # Filters come from the polling state supplied by PollRunner.
     polling do |grant, sd|
       Gmail::Polling.new(grant, sd).run
     end
@@ -144,7 +132,7 @@ module Gmail
 
     action :reply_to_message,
            display_name: "Reply to Email",
-           description:  "Reply to an existing message, preserving thread + In-Reply-To/References headers (mirrors n8n's `Message > Reply`)." do
+           description:  "Reply to an existing message, preserving thread + In-Reply-To/References headers." do
       field :message_id, type: "string", display_name: "Message ID", required: true,
             description: "The Gmail id of the message you're replying to."
       field :html, type: "string", display_name: "HTML Body",
@@ -560,8 +548,8 @@ module Gmail
 
     # =========================================================================
     # API METHODS — thin wrappers around Gmail REST endpoints. Actions
-    # delegate to these; downstream automations and curl users can call
-    # them directly via `grant.connector.<method>`.
+    # delegate to these methods; authorized Ruby callers can use
+    # `grant.connector.<method>` directly.
     # =========================================================================
 
     def send_message(to:, subject:, html: nil, text: nil,
@@ -590,9 +578,8 @@ module Gmail
       normalize_message(response)
     end
 
-    # n8n parity: packages/nodes-base/nodes/Google/Gmail/utils/replyToEmail.ts
-    # Fetches the parent message's headers (Message-ID, Subject, From, To,
-    # Reply-To), assembles a properly threaded reply via MimeBuilder, sends.
+    # Fetches the parent message's headers and sends a threaded reply
+    # using MimeBuilder.
     def reply_to_message(message_id:, html: nil, text: nil,
                           cc: nil, bcc: nil, sender_name: nil,
                           reply_to_sender_only: false,
@@ -615,7 +602,7 @@ module Gmail
       subject     = headers["subject"].to_s
       reply_subject = subject.start_with?(/re:\s/i) ? subject : "Re: #{subject}"
 
-      # Build the To: list — same precedence rules as n8n's replyToEmail.
+      # Apply sender/recipient flags, prefer Reply-To over From, and exclude self.
       profile = Api.request(client, :get, "users/me/profile", resource: "profile")
       my_email = profile["emailAddress"].to_s
 

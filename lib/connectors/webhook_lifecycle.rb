@@ -2,12 +2,6 @@ module Connectors
   # Runs a connector's webhook_methods callbacks: subscribe = run create
   # (skipping when check_exists already returns true), unsubscribe = run
   # delete. State is persisted into `grant.static_data[group_name]`.
-  #
-  # n8n parity: this is the per-trigger activation orchestration that
-  # `cli/src/active-workflow-runner.ts` performs around each
-  # `INodeType#webhookMethods.default.*` call. We provide it as a connector-
-  # side primitive so the eventual workflow-side activation manager can
-  # call into it without re-implementing the gating.
   class WebhookLifecycle
     def self.subscribe(grant, hook_url:, webhook_name: :default)
       new(grant, webhook_name).subscribe(hook_url: hook_url)
@@ -27,8 +21,7 @@ module Connectors
         )
     end
 
-    # Mirrors n8n: if checkExists returns true, skip create — provider
-    # already has an equivalent subscription. Otherwise run create.
+    # Skip creation when check_exists finds an existing subscription.
     def subscribe(hook_url:)
       result = nil
       @grant.update_static_data!(@webhook_name) do |sub|

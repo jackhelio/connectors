@@ -21,9 +21,8 @@ module Connectors
     end
 
     # POST /connectors/grants/:id/test
-    # Runs the connector's declared `test_request` against the live
-    # provider using THIS grant's credentials. Returns `{status, message}`
-    # — n8n parity (packages/cli/src/credentials/credentials.controller.ts:141-152).
+    # Runs the declared provider test using this grant's credentials
+    # and returns `{status, message}`.
     def test
       owner = current_owner!
       grant = Grant.where(owner: owner).find(params[:id])
@@ -33,13 +32,10 @@ module Connectors
     end
 
     # POST /connectors/grants/:id/webhook_subscribe
-    # Runs the connector's `webhook_methods` create flow (skipping when
-    # check_exists already returns true). Manual entry point for Phase 6 —
-    # the workflow activation manager will call into this same lifecycle
-    # primitive (`Connectors::WebhookLifecycle.subscribe`) once it ships.
+    # Runs WebhookLifecycle.subscribe, skipping creation when check_exists succeeds.
     #
     # Params:
-    #   webhook_name=:default — group name (multi-webhook providers)
+    #   webhook_name=:default — subscription group
     #   hook_url=<override>   — defaults to the per-grant or app-level URL
     def webhook_subscribe
       owner = current_owner!
@@ -62,9 +58,8 @@ module Connectors
     end
 
     # POST /connectors/grants/:id/poll
-    # Runs the connector's `polling` block once. Manual harness for Phase 8 —
-    # the workflow-side scheduler will call into `Connectors::PollRunner.run`
-    # directly once it ships.
+    # Runs the connector's polling block once through PollRunner.
+    # The host controls scheduling.
     def poll
       owner  = current_owner!
       grant  = Grant.where(owner: owner).find(params[:id])

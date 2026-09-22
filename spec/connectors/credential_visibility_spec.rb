@@ -1,11 +1,7 @@
 require "rails_helper"
 
-# Phase 5 — credential visibility flags. Three orthogonal switches on
-# `ICredentialType` (n8n source: packages/workflow/src/interfaces.ts:379-381):
-#   - genericAuth:     boolean              — eligible for the HTTP-Request node picker
-#   - supportedNodes:  string[]             — explicit allowlist; empty = unrestricted
-#   - httpRequestNode: { name, docsUrl, ... } — picker label/docs/baseUrl hint
-RSpec.describe "Phase 5 — credential visibility flags" do
+# Credential visibility: generic_auth, supported_nodes and HTTP picker metadata.
+RSpec.describe "credential visibility flags" do
   let(:owner) { Owner.create!(name: "p5 owner") }
 
   # Connector A — restricted to two specific node types
@@ -51,7 +47,7 @@ RSpec.describe "Phase 5 — credential visibility flags" do
       expect(plain.supported_nodes).to eq([])
     end
 
-    it "stores http_request_node with the n8n key shape (camelCase)" do
+    it "stores http_request_node with camelCase metadata keys" do
       expect(generic.http_request_node).to eq(
         "name"       => "Generic Test API",
         "docsUrl"    => "https://example.test/docs",
@@ -61,7 +57,7 @@ RSpec.describe "Phase 5 — credential visibility flags" do
       expect(plain.http_request_node).to be_nil
     end
 
-    it "requires one of apiBaseUrl or apiBaseUrlPlaceholder (matches the n8n union)" do
+    it "requires one of apiBaseUrl or apiBaseUrlPlaceholder" do
       expect {
         Class.new(Connectors::Connector) do
           connector key: :p5_invalid, auth: :api_key, base_url: "https://x.test"
@@ -76,7 +72,7 @@ RSpec.describe "Phase 5 — credential visibility flags" do
       expect(plain.generic_auth?).to   be false
     end
 
-    it "inherits generic_auth? from extended schemas (Phase 2 base types)" do
+    it "inherits generic_auth? from extended schemas" do
       bearer = Class.new(Connectors::Connector) do
         connector key: :p5_bearer, auth: :api_key, base_url: "https://b.test"
         credentials { extends :http_bearer_auth }

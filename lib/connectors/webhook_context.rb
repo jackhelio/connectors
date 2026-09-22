@@ -1,13 +1,7 @@
 module Connectors
-  # Rich context object passed to `Connector#handle_webhook`. Mirrors n8n's
-  # `IWebhookFunctions` (packages/workflow/src/interfaces.ts:1327-1350): the
-  # handler gets the parsed body AND headers AND query AND a stable
-  # `webhook_name` for multi-webhook providers, without having to thread
-  # `event.request_object.foo` through everywhere.
-  #
-  # Forwards a small set of methods to the underlying `WebhookEvent` so
-  # legacy handlers written against `event.payload_hash` keep working — see
-  # `Connector#handle_webhook` arity detection in `DeliverWebhookJob`.
+  # Request context passed to Connector#handle_webhook. Exposes parsed and
+  # raw body, headers, query and webhook group. Delegates payload aliases
+  # and exposes the persisted WebhookEvent for existing handlers.
   class WebhookContext
     attr_reader :event
 
@@ -15,33 +9,29 @@ module Connectors
       @event = event
     end
 
-    # Parsed body (n8n: `getBodyData()`). Always a Hash — falls back to {}.
+    # Parsed body, with an empty hash fallback.
     def body
       @event.payload_hash
     end
     alias payload      body
     alias payload_hash body
 
-    # Raw (untouched) request body string. nil when the controller couldn't
-    # capture it (form-encoded payloads where Rails consumed the stream).
-    # n8n: `getRequestObject().rawBody`.
+    # Raw request body captured on the persisted event, when available.
     def raw_body
       @event.raw_body
     end
 
-    # All request headers (n8n: `getHeaderData()`). Lowercased keys — same
-    # normalization n8n applies via `req.headers`.
+    # Request headers with lowercase keys.
     def headers
       @event.headers || {}
     end
 
-    # Query string parameters (n8n: `getQueryData()`).
+    # Query string parameters.
     def query
       @event.query || {}
     end
 
-    # Webhook group name that the request hit — `:default` / `:setup` / etc.
-    # n8n: `getWebhookName()`.
+    # Named webhook group, defaulting to :default.
     def webhook_name
       (@event.webhook_name || "default").to_sym
     end

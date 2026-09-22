@@ -9,12 +9,6 @@ module Connectors
   # the action's param schema, then dispatches through `ActionRunner`. The
   # response envelope is always `{ status: "ok"|"error", action:, ... }` so
   # frontends and workflow executors consume the same shape.
-  #
-  # n8n parity: this is the moral equivalent of the executor's per-node
-  # `execute()` step (packages/core/src/node-execute-functions.ts) reachable
-  # over HTTP. The workflow engine in `automations/` will eventually call
-  # `ActionRunner.call(grant, action, input)` directly without going
-  # through HTTP — same path, no controller in the loop.
   class ActionsController < ApplicationController
     # Order matters: Rails `rescue_from` iterates in REVERSE declaration
     # order, so the more-specific subclasses must be declared AFTER
