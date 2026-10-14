@@ -33,7 +33,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "faraday", "~> 2.9"
   spec.add_dependency "faraday-retry", "~> 2.2"
   spec.add_dependency "oauth2", "~> 2.0"
-  spec.add_dependency "mcp", "= 1.6.0"
+  spec.add_dependency "mcp", "= 1.7.0"
   spec.add_dependency "json_schemer", "~> 2.5"
   spec.add_dependency "event_stream_parser", "~> 1.0"
 end
