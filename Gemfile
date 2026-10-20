@@ -17,5 +17,5 @@ gem "rubocop-rails-omakase", require: false
 
 group :development, :test do
   gem "rspec-rails", "~> 8.0"
-  gem "webmock",     "~> 3.24"
+  gem "webmock",     "~> 3.34"
 end
